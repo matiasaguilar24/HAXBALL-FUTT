@@ -235,7 +235,11 @@ const App: React.FC = () => {
     if (userQualified) {
         alert("¡Has clasificado a la Copa de Campeones!");
         setLeague(null);
-        startTournament(activeLeague.div1.find(t=>t.id===activeLeague.userTeamId)!, [], activeLeague.settings);
+        // Extract proper opponents from League (minus player)
+        const playerTeamObj = cupTeams.find(t => t.id === activeLeague.userTeamId)!;
+        const cupOpponents = cupTeams.filter(t => t.id !== activeLeague.userTeamId);
+        
+        startTournament(playerTeamObj, [], activeLeague.settings, cupOpponents);
     } else {
         alert("No clasificaste a la copa. Simulando playoffs...");
         setLeague(null);
@@ -272,9 +276,19 @@ const App: React.FC = () => {
       });
   };
 
-  const startTournament = (playerTeam: Team, names: string[], settings: MatchSettings) => {
+  const startTournament = (playerTeam: Team, names: string[], settings: MatchSettings, existingOpponents?: Team[]) => {
       const teams: Team[] = [playerTeam];
-      if (names.length > 0) names.slice(0, 15).forEach((n, i) => teams.push(generateRandomAI(`ai_${i}`, n)));
+      
+      if (existingOpponents && existingOpponents.length > 0) {
+          // Use real league teams
+          teams.push(...existingOpponents.slice(0, 15));
+      } else if (names.length > 0) {
+          // Generate random teams for standard cup mode
+          names.slice(0, 15).forEach((n, i) => teams.push(generateRandomAI(`ai_${i}`, n)));
+      } else {
+          // Fallback if no names provided (shouldn't happen in normal flow, but just in case)
+          for(let i=0; i<15; i++) teams.push(generateRandomAI(`ai_fallback_${i}`, `CPU Team ${i+1}`));
+      }
       
       const shuffled = [...teams].sort(() => Math.random() - 0.5);
       
