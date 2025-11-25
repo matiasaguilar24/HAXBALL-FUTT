@@ -26,8 +26,8 @@ const GOAL_HEIGHT = 140;
 const PLAYER_RADIUS = 16;
 const BALL_RADIUS = 9;
 const MAX_SPEED = 4.5;
-const MAX_BALL_SPEED = 8.5; // Reduced to prevent visibility issues
-const KICK_STRENGTH = 4.0; // Adjusted for better control
+const MAX_BALL_SPEED = 8.5; 
+const KICK_STRENGTH = 4.0;
 const PHYSICS_STEPS = 5;
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
@@ -45,23 +45,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const [soundEnabled, setSoundEnabled] = useState(true);
   const requestRef = useRef<number>(0);
   
-  // PENALTY STATE (Kept for compatibility, but bypassed for Golden Goal)
+  // PENALTY STATE
   const [isPenaltyMode, setIsPenaltyMode] = useState(false);
   const [penaltyPhase, setPenaltyPhase] = useState<'aiming' | 'kicking' | 'result'>('aiming');
   const [penaltyRound, setPenaltyRound] = useState(0);
   const [penaltyTurn, setPenaltyTurn] = useState<'player' | 'cpu'>('player');
   const penaltyAimAngle = useRef(0);
-  const penaltyAimDirection = useRef(1); // 1 or -1 for oscillation
+  const penaltyAimDirection = useRef(1);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const lastSoundTimeRef = useRef<number>(0);
   const isEndingRef = useRef(false);
   
   // Game Objects
+  // PlayerRef = Left Team (P1 / Host)
   const playerRef = useRef<PhysicsCircle>({ 
       x: 150, y: CANVAS_HEIGHT / 2, radius: PLAYER_RADIUS, vx: 0, vy: 0, mass: 10, damping: 0.94, 
       color: teamA.color, secondaryColor: teamA.secondaryColor, pattern: teamA.pattern 
   });
+  // OpponentRef = Right Team (CPU / Client / P2)
   const opponentRef = useRef<PhysicsCircle>({ 
       x: CANVAS_WIDTH - 150, y: CANVAS_HEIGHT / 2, radius: PLAYER_RADIUS, vx: 0, vy: 0, mass: 10, damping: 0.94, 
       color: teamB.color, secondaryColor: teamB.secondaryColor, pattern: teamB.pattern
@@ -188,10 +189,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                      playSound('kick');
                   }, 100);
               }
-              const up = keysRef.current['w'] || keysRef.current['ArrowUp'];
-              const down = keysRef.current['s'] || keysRef.current['ArrowDown'];
-              if (up) playerRef.current.vy = -4;
-              if (down) playerRef.current.vy = 4;
           }
       } else if (penaltyPhase === 'kicking') {
           const ball = ballRef.current;
@@ -234,10 +231,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       playSound('goal');
       if (scorer === 'A') setScoreA(s => s + 1); else setScoreB(s => s + 1);
       
-      // If Golden Goal mode is active, any goal ends the game immediately
       if (isGoldenGoal) {
           isEndingRef.current = true;
-          // Pass the updated score
           setTimeout(() => onGameOver(scorer==='A'?scoreA+1:scoreA, scorer==='B'?scoreB+1:scoreB), 100);
       } else {
           resetPositions('kickoff');
@@ -269,36 +264,28 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 c1.x -= overlap * cos * 0.5; c1.y -= overlap * sin * 0.5;
                 c2.x += overlap * cos * 0.5; c2.y += overlap * sin * 0.5;
 
-                // CRITICAL FIX: Player Physics Stability
-                // If it's Player vs Player
                 if (c1 !== ball && c2 !== ball) {
                     let tx = c1.vx; let ty = c1.vy;
                     c1.vx = c2.vx * 0.8; c1.vy = c2.vy * 0.8;
                     c2.vx = tx * 0.8; c2.vy = ty * 0.8;
                 } 
-                // If it's Player vs Ball
                 else {
-                    // Identify which is the ball
                     const ballEntity = c1 === ball ? c1 : c2;
                     const playerEntity = c1 === ball ? c2 : c1;
-                    
-                    // IMPORTANT: Player keeps their own velocity (dampened), DOES NOT inherit ball velocity
-                    // This prevents the player from flying backwards when hitting the ball
                     const playerVx = playerEntity.vx;
                     const playerVy = playerEntity.vy;
-                    
                     playerEntity.vx = playerVx * 0.95; 
                     playerEntity.vy = playerVy * 0.95;
 
-                    // Ball inherits player velocity plus kick force
-                    const isKicking = (playerEntity === player && keysRef.current[' ']) || (playerEntity === opponent && remoteKeysRef.current[' ']);
-                    const kickBonus = isKicking ? KICK_STRENGTH : 1.2; 
+                    // Remote kick handling
+                    const isRemotePlayer = playerEntity === opponent;
+                    const isLocalPlayer = playerEntity === player;
+                    const isKicking = (isLocalPlayer && keysRef.current[' ']) || (isRemotePlayer && remoteKeysRef.current[' ']);
                     
-                    // Transfer momentum from player to ball
+                    const kickBonus = isKicking ? KICK_STRENGTH : 1.2; 
                     ballEntity.vx = playerVx * kickBonus + ballEntity.vx * 0.5;
                     ballEntity.vy = playerVy * kickBonus + ballEntity.vy * 0.5;
 
-                    // Hard Cap collision velocity immediately
                     const postColSpeed = Math.sqrt(ballEntity.vx*ballEntity.vx + ballEntity.vy*ballEntity.vy);
                     if (postColSpeed > MAX_BALL_SPEED) {
                         ballEntity.vx = (ballEntity.vx/postColSpeed) * MAX_BALL_SPEED;
@@ -333,8 +320,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         if (gA) return gA;
         constrain(player); constrain(opponent);
     }
-
-    // Safety Cap at end of frame
+    
+    // Safety
     const b = ballRef.current;
     const bSpeed = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
     if(bSpeed > MAX_BALL_SPEED) {
@@ -348,7 +335,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const update = useCallback(() => {
     if (isPaused) return;
+    
+    // --- MULTIPLAYER CLIENT LOGIC (No Physics, just Sync) ---
+    if (mode === 'online_client') {
+        // 1. Send Inputs
+        if (networkSend) {
+            networkSend({ keys: keysRef.current } as InputPayload);
+        }
+        // 2. Receive State & Update Positions
+        if (networkDataRef && networkDataRef.current) {
+            const data = networkDataRef.current as GameStatePayload;
+            if (data && data.p1) {
+                playerRef.current.x = data.p1.x; playerRef.current.y = data.p1.y;
+                opponentRef.current.x = data.p2.x; opponentRef.current.y = data.p2.y;
+                ballRef.current.x = data.ball.x; ballRef.current.y = data.ball.y;
+                // Sync scores/time occasionally
+                setScoreA(data.scoreA); 
+                setScoreB(data.scoreB);
+                setTimeLeft(data.timeLeft);
+            }
+        }
+        return; // Skip physics engine
+    }
 
+    // --- HOST & SINGLE PLAYER LOGIC ---
     if (isPenaltyMode) {
         updatePenaltyLogic();
         const res = runPhysics();
@@ -356,29 +366,38 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         return;
     }
 
-    const player = playerRef.current;
-    const opponent = opponentRef.current;
-    const ball = ballRef.current;
-
+    // Apply Player Controls (Host/Local)
     const ACCEL = 0.5;
     const k = keysRef.current;
-    const up = k['ArrowUp'] || k['w'] || k['W'];
-    const down = k['ArrowDown'] || k['s'] || k['S'];
-    const left = k['ArrowLeft'] || k['a'] || k['A'];
-    const right = k['ArrowRight'] || k['d'] || k['D'];
-
-    if (up) player.vy -= ACCEL;
-    if (down) player.vy += ACCEL;
-    if (left) player.vx -= ACCEL;
-    if (right) player.vx += ACCEL;
-
+    const player = playerRef.current;
+    if (k['ArrowUp'] || k['w'] || k['W']) player.vy -= ACCEL;
+    if (k['ArrowDown'] || k['s'] || k['S']) player.vy += ACCEL;
+    if (k['ArrowLeft'] || k['a'] || k['A']) player.vx -= ACCEL;
+    if (k['ArrowRight'] || k['d'] || k['D']) player.vx += ACCEL;
     const pSpeed = Math.sqrt(player.vx*player.vx + player.vy*player.vy);
     if (pSpeed > MAX_SPEED) { player.vx = (player.vx/pSpeed)*MAX_SPEED; player.vy = (player.vy/pSpeed)*MAX_SPEED; }
 
-    if (mode === 'single') {
+    const opponent = opponentRef.current;
+
+    // Apply Opponent Controls
+    if (mode === 'online_host') {
+        // Read remote keys from client
+        if (networkDataRef && networkDataRef.current) {
+             remoteKeysRef.current = networkDataRef.current.keys || {};
+        }
+        const rk = remoteKeysRef.current;
+        if (rk['ArrowUp'] || rk['w'] || rk['W']) opponent.vy -= ACCEL;
+        if (rk['ArrowDown'] || rk['s'] || rk['S']) opponent.vy += ACCEL;
+        if (rk['ArrowLeft'] || rk['a'] || rk['A']) opponent.vx -= ACCEL;
+        if (rk['ArrowRight'] || rk['d'] || rk['D']) opponent.vx += ACCEL;
+        
+        const oSpeed = Math.sqrt(opponent.vx*opponent.vx + opponent.vy*opponent.vy);
+        if (oSpeed > MAX_SPEED) { opponent.vx = (opponent.vx/oSpeed)*MAX_SPEED; opponent.vy = (opponent.vy/oSpeed)*MAX_SPEED; }
+    } else {
+        // AI Logic (Single Player)
+        const ball = ballRef.current;
         let targetX = ball.x;
         let targetY = ball.y;
-        
         const trait = teamB.aiTrait || 'balanced';
         
         if (trait === 'defensive') {
@@ -407,7 +426,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         
         let aiMaxSpeed = AI_SPEED;
         if (trait === 'aggressive') aiMaxSpeed *= 1.1;
-        
         const currentAiSpeed = Math.sqrt(opponent.vx*opponent.vx + opponent.vy*opponent.vy);
         if (currentAiSpeed > aiMaxSpeed) {
             opponent.vx = (opponent.vx / currentAiSpeed) * aiMaxSpeed;
@@ -418,7 +436,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const goalResult = runPhysics();
     if (goalResult) handleGoal(goalResult === 'GOAL_A' ? 'A' : 'B');
 
-  }, [mode, runPhysics, handleGoal, AI_SPEED, isPaused, isPenaltyMode, penaltyPhase, teamB.aiTrait]);
+    // Send State if Host
+    if (mode === 'online_host' && networkSend) {
+        const payload: GameStatePayload = {
+            p1: { x: playerRef.current.x, y: playerRef.current.y, vx: playerRef.current.vx, vy: playerRef.current.vy },
+            p2: { x: opponentRef.current.x, y: opponentRef.current.y, vx: opponentRef.current.vx, vy: opponentRef.current.vy },
+            ball: { x: ballRef.current.x, y: ballRef.current.y, vx: ballRef.current.vx, vy: ballRef.current.vy },
+            scoreA, scoreB, timeLeft
+        };
+        networkSend(payload);
+    }
+
+  }, [mode, runPhysics, handleGoal, AI_SPEED, isPaused, isPenaltyMode, penaltyPhase, teamB.aiTrait, scoreA, scoreB, timeLeft]);
 
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -451,7 +480,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       
       if (c !== ballRef.current) {
          ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center';
-         ctx.fillText(c === playerRef.current ? "P1" : "CPU", c.x, c.y + 4);
+         const label = c === playerRef.current ? "P1" : "P2/CPU";
+         ctx.fillText(label, c.x, c.y + 4);
       }
     });
 
@@ -486,21 +516,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isPaused || isGoldenGoal || isPenaltyMode) return;
+    if (isPaused || isGoldenGoal || isPenaltyMode || mode === 'online_client') return; // Client takes time from Host
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-           // TIME IS UP
-           // Check AGGREGATE scores (Current Score + Leg 1 Score)
            const currentAggA = scoreA + leg1ScoreA;
            const currentAggB = scoreB + leg1ScoreB;
-           
            if (!allowDraw && currentAggA === currentAggB) {
-                // TIE and NO DRAW ALLOWED -> GOLDEN GOAL
                 setIsGoldenGoal(true);
                 return 0;
            } else {
-                // Game Over (Either draw allowed, or result is decisive)
                 isEndingRef.current = true;
                 onGameOver(scoreA, scoreB);
                 return 0;
@@ -510,7 +535,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [scoreA, scoreB, allowDraw, isPaused, isGoldenGoal, isPenaltyMode, leg1ScoreA, leg1ScoreB]);
+  }, [scoreA, scoreB, allowDraw, isPaused, isGoldenGoal, isPenaltyMode, leg1ScoreA, leg1ScoreB, mode, onGameOver]);
 
   useEffect(() => { requestRef.current = requestAnimationFrame(gameLoop); return () => cancelAnimationFrame(requestRef.current); }, [gameLoop]);
 
@@ -539,20 +564,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                   {onExit && <button onClick={onExit} className="bg-red-600 text-white font-bold py-2 px-6 rounded-lg">Salir</button>}
               </div>
           )}
-          {isPenaltyMode && penaltyPhase === 'aiming' && penaltyTurn === 'player' && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 px-4 py-2 rounded text-yellow-400 font-bold animate-pulse">
-                  ESPACIO para Chutar
-              </div>
-          )}
           {isGoldenGoal && (
                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-yellow-500/90 px-6 py-2 rounded-full text-black font-black text-xl animate-pulse shadow-lg shadow-yellow-500/50">
                    ¡GOL DE ORO!
                </div>
           )}
-      </div>
-      
-      <div className="mt-4 text-slate-400 text-sm flex gap-6">
-        <span>WASD: Mover</span> <span>Espacio: Chutar</span> <span>P: Pausa</span>
       </div>
     </div>
   );

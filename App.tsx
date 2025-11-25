@@ -108,7 +108,6 @@ const App: React.FC = () => {
               const winner = (l1A + l2A > l1B + l2B) ? updatedMatches[index].teamA : updatedMatches[index].teamB;
               updatedMatches[index] = { ...updatedMatches[index], scoreLeg1A: l1A, scoreLeg1B: l1B, scoreLeg2A: l2A, scoreLeg2B: l2B, playedLeg1: p1, playedLeg2: p2, winner };
               
-              // Propagate winner
               const nextRound = match.round + 1;
               const currentIdx = parseInt(match.id.split('_')[1]); 
               const nextMIdx = Math.floor(currentIdx / 2);
@@ -117,7 +116,6 @@ const App: React.FC = () => {
               
               const targetMatchIdx = updatedMatches.findIndex(nm => nm.id === nextMId);
               if (targetMatchIdx !== -1) {
-                  // If even index (0, 2, 4), goes to Team A slot. Odd (1, 3, 5) goes to Team B slot.
                   if (currentIdx % 2 === 0) updatedMatches[targetMatchIdx].teamA = winner;
                   else updatedMatches[targetMatchIdx].teamB = winner;
               }
@@ -384,9 +382,9 @@ const App: React.FC = () => {
       setAppState(AppState.MENU); 
       setTournament(null); 
       setLeague(null);
+      networkDataRef.current = null; // Clean up network data
       if (peerRef.current && onlineRole) {
-          // Keep peer connection alive for menu, but maybe we want to disconnect?
-          // For now, let's just reset app state.
+          // Keep peer connection alive?
       }
   };
 
@@ -410,9 +408,6 @@ const App: React.FC = () => {
              onConnect={(remoteId) => { setRemotePeerId(remoteId); connectToPeer(remoteId); }}
              onBack={() => {
                  setAppState(AppState.MENU);
-                 // Optional: Destroy peer if backing out completely
-                 // if(peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
-                 // setConnectionStatus('disconnected');
              }}
           />
       )}
