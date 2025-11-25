@@ -54,7 +54,7 @@ export const translations = {
     copy: "COPIAR",
     copied: "COPIADO",
     back: "VOLVER",
-    onlineDesc: "Juega contra un amigo P2P.",
+    onlineDesc: "Conexión instantánea, baja latencia.",
     cupDesc: "Eliminación directa. Ida y vuelta.",
     leagueDesc: "Modo Carrera. 15 Temporadas.",
     quickDesc: "Partido amistoso rápido.",
@@ -62,7 +62,8 @@ export const translations = {
     chat: "CHAT",
     typeMessage: "Escribe un mensaje...",
     send: "ENVIAR",
-    systemConnected: "Conexión establecida. ¡Pueden chatear!"
+    systemConnected: "Conexión establecida. ¡Pueden chatear!",
+    onlineCardDesc: "Juega online con un amigo en un amistoso de 2 minutos"
   },
   en: {
     play: "PLAY",
@@ -115,7 +116,7 @@ export const translations = {
     copy: "COPY",
     copied: "COPIED",
     back: "BACK",
-    onlineDesc: "Play against a friend P2P.",
+    onlineDesc: "Instant connection, low latency.",
     cupDesc: "Knockout stage. Two legs.",
     leagueDesc: "Career Mode. 15 Seasons.",
     quickDesc: "Quick friendly match.",
@@ -123,7 +124,8 @@ export const translations = {
     chat: "CHAT",
     typeMessage: "Type a message...",
     send: "SEND",
-    systemConnected: "Connection established. You can chat now!"
+    systemConnected: "Connection established. You can chat now!",
+    onlineCardDesc: "Play online with a friend in a 2-minute friendly match"
   },
   pt: {
     play: "JOGAR",
@@ -176,7 +178,7 @@ export const translations = {
     copy: "COPIAR",
     copied: "COPIADO",
     back: "VOLTAR",
-    onlineDesc: "Jogue contra um amigo P2P.",
+    onlineDesc: "Conexão instantânea, baixa latência.",
     cupDesc: "Eliminação. Ida e volta.",
     leagueDesc: "Modo Carreira. 15 Temporadas.",
     quickDesc: "Partida amistosa rápida.",
@@ -184,6 +186,7 @@ export const translations = {
     chat: "CHAT",
     typeMessage: "Digite uma mensagem...",
     send: "ENVIAR",
-    systemConnected: "Conexão estabelecida. Podem conversar!"
+    systemConnected: "Conexão estabelecida. Podem conversar!",
+    onlineCardDesc: "Jogue online com um amigo em um amistoso de 2 minutos"
   }
 };

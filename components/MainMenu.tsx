@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { generateTeamNames } from '../services/geminiService';
 import { translations } from '../services/translations';
-import { Loader2, Globe, Trophy, Users, PlayCircle, Sparkles, Zap, LayoutList, Clock, BarChart3, Save, Shield, Skull, Crown, Star, Palette, Settings, X, Smartphone } from 'lucide-react';
+import { Loader2, Globe, Trophy, Users, PlayCircle, Sparkles, Zap, LayoutList, Clock, BarChart3, Save, Shield, Skull, Crown, Star, Palette, Settings, X, Smartphone, ChevronDown, ChevronUp } from 'lucide-react';
 import { MatchSettings, Difficulty, Team, Pattern, Emblem, Language } from '../types';
 
 interface MainMenuProps {
@@ -41,6 +40,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
   const [secondaryColor, setSecondaryColor] = useState('#ffffff');
   const [selectedPattern, setSelectedPattern] = useState<Pattern>('solid');
   const [selectedEmblem, setSelectedEmblem] = useState<Emblem>('shield');
+  const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -78,61 +78,71 @@ const MainMenu: React.FC<MainMenuProps> = ({
   };
 
   const TeamEditor = () => (
-      <div className="bg-black/30 rounded-xl p-4 space-y-4 border border-white/10">
-          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-               <Palette size={12} /> {t.customize}
-          </label>
+      <div className="bg-black/30 rounded-xl border border-white/10 overflow-hidden transition-all duration-300">
+          <button 
+            onClick={() => setIsCustomizationOpen(!isCustomizationOpen)}
+            className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors group"
+          >
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 cursor-pointer group-hover:text-white">
+                 <Palette size={12} /> {t.customize}
+            </label>
+            {isCustomizationOpen ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+          </button>
           
-          {/* Colors */}
-          <div className="flex gap-4">
-               <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">{t.primary}</p>
-                   <div className="flex flex-wrap gap-1">
-                       {COLORS.map(c => (
-                           <button key={c} onClick={()=>setPrimaryColor(c)} className={`w-5 h-5 rounded-full border ${primaryColor===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
-                       ))}
-                   </div>
-               </div>
-               <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">{t.secondary}</p>
-                   <div className="flex flex-wrap gap-1">
-                       {COLORS.map(c => (
-                           <button key={c} onClick={()=>setSecondaryColor(c)} className={`w-5 h-5 rounded-full border ${secondaryColor===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
-                       ))}
-                   </div>
-               </div>
-          </div>
+          {isCustomizationOpen && (
+            <div className="px-4 pb-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
+              {/* Colors */}
+              <div className="flex gap-4">
+                  <div className="flex-1">
+                      <p className="text-[10px] text-slate-500 mb-1">{t.primary}</p>
+                      <div className="flex flex-wrap gap-1">
+                          {COLORS.map(c => (
+                              <button key={c} onClick={()=>setPrimaryColor(c)} className={`w-5 h-5 rounded-full border ${primaryColor===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
+                          ))}
+                      </div>
+                  </div>
+                  <div className="flex-1">
+                      <p className="text-[10px] text-slate-500 mb-1">{t.secondary}</p>
+                      <div className="flex flex-wrap gap-1">
+                          {COLORS.map(c => (
+                              <button key={c} onClick={()=>setSecondaryColor(c)} className={`w-5 h-5 rounded-full border ${secondaryColor===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
+                          ))}
+                      </div>
+                  </div>
+              </div>
 
-          {/* Pattern & Emblem */}
-          <div className="flex gap-2">
-              <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">{t.design}</p>
-                   <div className="flex gap-1">
-                        {(['solid', 'stripes', 'sash', 'half'] as Pattern[]).map(p => (
-                             <button key={p} onClick={()=>setSelectedPattern(p)} className={`p-1 rounded ${selectedPattern===p ? 'bg-white/20' : 'bg-black/20'}`} title={p}>
-                                 <div className={`w-6 h-6 rounded-full border border-white/30 overflow-hidden relative`} style={{background: primaryColor}}>
-                                     {p === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className="w-1 h-full bg-white/50"></div><div className="w-1 h-full bg-white/50"></div></div>}
-                                     {p === 'sash' && <div className="absolute w-[150%] h-2 bg-white/50 -rotate-45 top-2 -left-2"></div>}
-                                     {p === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50"></div>}
-                                 </div>
-                             </button>
-                        ))}
-                   </div>
+              {/* Pattern & Emblem */}
+              <div className="flex gap-2">
+                  <div className="flex-1">
+                      <p className="text-[10px] text-slate-500 mb-1">{t.design}</p>
+                      <div className="flex gap-1">
+                            {(['solid', 'stripes', 'sash', 'half'] as Pattern[]).map(p => (
+                                <button key={p} onClick={()=>setSelectedPattern(p)} className={`p-1 rounded ${selectedPattern===p ? 'bg-white/20' : 'bg-black/20'}`} title={p}>
+                                    <div className={`w-6 h-6 rounded-full border border-white/30 overflow-hidden relative`} style={{background: primaryColor}}>
+                                        {p === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className="w-1 h-full bg-white/50"></div><div className="w-1 h-full bg-white/50"></div></div>}
+                                        {p === 'sash' && <div className="absolute w-[150%] h-2 bg-white/50 -rotate-45 top-2 -left-2"></div>}
+                                        {p === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50"></div>}
+                                    </div>
+                                </button>
+                            ))}
+                      </div>
+                  </div>
+                  <div className="flex-1">
+                      <p className="text-[10px] text-slate-500 mb-1">{t.emblem}</p>
+                      <div className="flex gap-1">
+                            {(['shield', 'zap', 'crown', 'skull'] as Emblem[]).map(e => (
+                                <button key={e} onClick={()=>setSelectedEmblem(e)} className={`p-1 rounded ${selectedEmblem===e ? 'bg-white/20' : 'bg-black/20'}`}>
+                                    {e === 'shield' && <Shield size={16} />}
+                                    {e === 'zap' && <Zap size={16} />}
+                                    {e === 'crown' && <Crown size={16} />}
+                                    {e === 'skull' && <Skull size={16} />}
+                                </button>
+                            ))}
+                      </div>
+                  </div>
               </div>
-              <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">{t.emblem}</p>
-                   <div className="flex gap-1">
-                        {(['shield', 'zap', 'crown', 'skull'] as Emblem[]).map(e => (
-                             <button key={e} onClick={()=>setSelectedEmblem(e)} className={`p-1 rounded ${selectedEmblem===e ? 'bg-white/20' : 'bg-black/20'}`}>
-                                 {e === 'shield' && <Shield size={16} />}
-                                 {e === 'zap' && <Zap size={16} />}
-                                 {e === 'crown' && <Crown size={16} />}
-                                 {e === 'skull' && <Skull size={16} />}
-                             </button>
-                        ))}
-                   </div>
-              </div>
-          </div>
+            </div>
+          )}
       </div>
   );
 
@@ -361,7 +371,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
                         </div>
                         <div className="p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-xl flex items-start gap-3">
                             <Users className="text-emerald-400 shrink-0 mt-1" size={20} />
-                            <p className="text-xs text-emerald-200">Peer-to-Peer.</p>
+                            <p className="text-xs text-emerald-200">{t.onlineCardDesc}</p>
                         </div>
                         <button onClick={onGoToOnline} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-5 rounded-xl text-lg flex items-center justify-center gap-3 transition-transform active:scale-[0.98] mt-auto">
                             <Globe size={24} /> {t.goToLobby}

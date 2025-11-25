@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import GameCanvas from './components/GameCanvas';
 import TournamentView from './components/TournamentView';
@@ -584,7 +585,7 @@ const App: React.FC = () => {
                 // Online Team Setup
                 tA = { id: 'host', name: 'HOST', color: TEAM_COLORS[1], isPlayer: true, pattern: 'solid' };
                 tB = { id: 'client', name: 'CLIENT', color: TEAM_COLORS[4], isPlayer: true, pattern: 'stripes', secondaryColor: '#fff' };
-                currentSettings = { timeLimit: 180, difficulty: 'normal' }; // Default online time
+                currentSettings = { timeLimit: 120, difficulty: 'normal' }; // Default online time
             } else if (league && appState === AppState.GAME) {
                  allowDraw = true;
                  currentSettings = league.settings;
