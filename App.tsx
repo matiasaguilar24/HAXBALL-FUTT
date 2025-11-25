@@ -1,12 +1,12 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import GameCanvas from './components/GameCanvas';
 import TournamentView from './components/TournamentView';
 import LeagueView from './components/LeagueView';
 import MainMenu from './components/MainMenu';
 import OnlineMenu from './components/OnlineMenu';
-import { AppState, TournamentState, Match, Team, LeagueState, LeagueTeam, LeagueMatch, MatchSettings, Difficulty, Pattern, AITrait } from './types';
-import { generateMatchCommentary } from './services/geminiService';
+import { AppState, TournamentState, Match, Team, LeagueState, LeagueTeam, LeagueMatch, MatchSettings, Difficulty, Pattern, AITrait, Language, ChatEntry, ChatPayload } from './types';
+import { translations } from './services/translations';
 import { MessageSquare, ArrowRight, Copy, Loader2, Wifi } from 'lucide-react';
 import { Peer } from "peerjs";
 
@@ -18,19 +18,25 @@ const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.MENU);
   const [tournament, setTournament] = useState<TournamentState | null>(null);
   const [league, setLeague] = useState<LeagueState | null>(null);
-  const [commentary, setCommentary] = useState<string | null>(null);
-  const [commentaryLoading, setCommentaryLoading] = useState(false);
   const [quickMatchState, setQuickMatchState] = useState<{player: Team, cpu: Team, settings: MatchSettings} | null>(null);
   const [nextSeasonData, setNextSeasonData] = useState<{ div1: LeagueTeam[], div2: LeagueTeam[], div3: LeagueTeam[], season: number } | null>(null);
+
+  // Settings State
+  const [language, setLanguage] = useState<Language>('es');
+  const [mobileControls, setMobileControls] = useState(false);
 
   // Online State
   const [peerId, setPeerId] = useState<string>('');
   const [remotePeerId, setRemotePeerId] = useState<string>('');
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatEntry[]>([]);
+  
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<any>(null);
   const networkDataRef = useRef<any>(null);
+
+  const t = translations[language];
 
   const saveLeague = () => { if (league) localStorage.setItem('haxball_league_save', JSON.stringify(league)); };
   const loadLeague = () => {
@@ -56,7 +62,7 @@ const App: React.FC = () => {
           setConnectionStatus('connected'); 
           setOnlineRole('host');
           setupConnectionListeners(conn); 
-          setAppState(AppState.GAME);
+          addSystemMessage('systemConnected');
       });
       peerRef.current = newPeer;
   };
@@ -70,16 +76,57 @@ const App: React.FC = () => {
       setOnlineRole('client');
       conn.on('open', () => { 
           setConnectionStatus('connected'); 
-          setupConnectionListeners(conn); 
-          setAppState(AppState.GAME); 
+          setupConnectionListeners(conn);
+          addSystemMessage('systemConnected'); 
       });
   };
 
   const setupConnectionListeners = (conn: any) => {
-      conn.on('data', (data: any) => networkDataRef.current = data);
-      conn.on('close', () => { alert('Conexión perdida'); returnToMenu(); window.location.reload(); });
+      conn.on('data', (data: any) => {
+          // Check if data is a Chat Message
+          if (data && data.type === 'CHAT') {
+              setChatMessages(prev => [...prev, {
+                  id: Date.now().toString() + Math.random(),
+                  sender: 'opponent',
+                  text: data.text,
+                  timestamp: Date.now()
+              }]);
+          } else {
+              // It's game data, pass to reference
+              networkDataRef.current = data;
+          }
+      });
+      conn.on('close', () => { 
+          alert('Conexión perdida'); 
+          returnToMenu(); 
+          window.location.reload(); 
+      });
   };
+
   const sendNetworkData = (data: any) => { if (connRef.current && connectionStatus === 'connected') connRef.current.send(data); };
+
+  const sendChatMessage = (text: string) => {
+      if (connRef.current && connectionStatus === 'connected') {
+          const payload: ChatPayload = { type: 'CHAT', text };
+          connRef.current.send(payload);
+          setChatMessages(prev => [...prev, {
+              id: Date.now().toString(),
+              sender: 'me',
+              text: text,
+              timestamp: Date.now()
+          }]);
+      }
+  };
+
+  const addSystemMessage = (key: string) => {
+       // We use a timeout to ensure translations are loaded if necessary, though here we have access to 't'
+       setChatMessages(prev => [...prev, {
+           id: Date.now().toString(),
+           sender: 'system',
+           text: key, // We will translate in the UI
+           timestamp: Date.now()
+       }]);
+  };
 
   // --- HELPERS ---
   const generateRandomAI = (id: string, name: string): Team => {
@@ -219,7 +266,7 @@ const App: React.FC = () => {
     const s1 = sort(d1); const s2 = sort(d2); const s3 = sort(d3);
 
     const champion = s1[0];
-    alert(`¡FIN DE LA LIGA!\nCampeón de Liga: ${champion.name}`);
+    alert(`¡${t.season} Finalizada!\n${t.champion}: ${champion.name}`);
 
     const nD1 = [...s1.slice(0,17), ...s2.slice(0,3)];
     const nD2 = [...s1.slice(17,20), ...s2.slice(3,15), ...s3.slice(0,5)];
@@ -233,7 +280,7 @@ const App: React.FC = () => {
     const userQualified = cupTeams.some(t => t.id === activeLeague.userTeamId);
     
     if (userQualified) {
-        alert("¡Has clasificado a la Copa de Campeones!");
+        alert("¡Clasificado a la Copa de Campeones!");
         setLeague(null);
         // Extract proper opponents from League (minus player)
         const playerTeamObj = cupTeams.find(t => t.id === activeLeague.userTeamId)!;
@@ -311,7 +358,7 @@ const App: React.FC = () => {
   const handleGameOver = (scoreA: number, scoreB: number) => {
       if (appState === AppState.QUICK_MATCH) { setAppState(AppState.MENU); return; }
       if (appState === AppState.GAME && onlineRole) { 
-          alert(`Juego Terminado. Marcador: ${scoreA} - ${scoreB}`);
+          alert(`${t.gameOver}: ${scoreA} - ${scoreB}`);
           setAppState(AppState.ONLINE_MENU); 
           return; 
       }
@@ -452,6 +499,7 @@ const App: React.FC = () => {
       setAppState(AppState.MENU); 
       setTournament(null); 
       setLeague(null);
+      setChatMessages([]);
       networkDataRef.current = null; // Clean up network data
       if (peerRef.current && onlineRole) {
           // Keep peer connection alive?
@@ -468,6 +516,10 @@ const App: React.FC = () => {
             onQuickMatch={startQuickMatch}
             onLoadLeague={loadLeague}
             hasSavedGame={hasSavedLeague}
+            language={language}
+            setLanguage={setLanguage}
+            mobileControls={mobileControls}
+            setMobileControls={setMobileControls}
         />
       )}
 
@@ -479,6 +531,12 @@ const App: React.FC = () => {
              onBack={() => {
                  setAppState(AppState.MENU);
              }}
+             onStartGame={() => {
+                setAppState(AppState.GAME);
+             }}
+             language={language}
+             chatMessages={chatMessages}
+             onSendMessage={sendChatMessage}
           />
       )}
       
@@ -576,6 +634,8 @@ const App: React.FC = () => {
                 mode={mode}
                 networkSend={sendNetworkData}
                 networkDataRef={networkDataRef}
+                language={language}
+                mobileControls={mobileControls}
               />
             );
           })()}
@@ -584,8 +644,8 @@ const App: React.FC = () => {
       
       {appState === AppState.GAME_OVER && (
           <div className="h-screen flex flex-col items-center justify-center p-6 bg-slate-900/90 backdrop-blur">
-             <h2 className="text-4xl font-bold mb-6 text-white">Partido Finalizado</h2>
-             <button onClick={() => tournament ? setAppState(AppState.TOURNAMENT_TREE) : returnToMenu()} className="bg-blue-600 px-8 py-3 rounded-full font-bold">Continuar</button>
+             <h2 className="text-4xl font-bold mb-6 text-white">{t.gameOver}</h2>
+             <button onClick={() => tournament ? setAppState(AppState.TOURNAMENT_TREE) : returnToMenu()} className="bg-blue-600 px-8 py-3 rounded-full font-bold">{t.continue}</button>
           </div>
       )}
     </div>

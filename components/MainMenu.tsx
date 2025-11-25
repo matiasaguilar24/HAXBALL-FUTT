@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { generateTeamNames } from '../services/geminiService';
-import { Loader2, Globe, Trophy, Users, PlayCircle, Sparkles, Zap, LayoutList, Clock, BarChart3, Save, Shield, Skull, Crown, Star, Palette, Brush } from 'lucide-react';
-import { MatchSettings, Difficulty, Team, Pattern, Emblem } from '../types';
+import { translations } from '../services/translations';
+import { Loader2, Globe, Trophy, Users, PlayCircle, Sparkles, Zap, LayoutList, Clock, BarChart3, Save, Shield, Skull, Crown, Star, Palette, Settings, X, Smartphone } from 'lucide-react';
+import { MatchSettings, Difficulty, Team, Pattern, Emblem, Language } from '../types';
 
 interface MainMenuProps {
   onStartTournament: (playerTeam: Team, generatedTeams: string[], settings: MatchSettings) => void;
@@ -11,6 +12,10 @@ interface MainMenuProps {
   onQuickMatch: (settings: MatchSettings) => void;
   onLoadLeague?: () => void;
   hasSavedGame?: boolean;
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  mobileControls: boolean;
+  setMobileControls: (enabled: boolean) => void;
 }
 
 // Predefined colors
@@ -22,9 +27,14 @@ const MainMenu: React.FC<MainMenuProps> = ({
     onGoToOnline, 
     onQuickMatch,
     onLoadLeague,
-    hasSavedGame = false 
+    hasSavedGame = false,
+    language,
+    setLanguage,
+    mobileControls,
+    setMobileControls
 }) => {
   const [playerName, setPlayerName] = useState('Mi Equipo');
+  const t = translations[language];
   
   // Customization State
   const [primaryColor, setPrimaryColor] = useState('#3b82f6');
@@ -33,6 +43,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
   const [selectedEmblem, setSelectedEmblem] = useState<Emblem>('shield');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState<'cup' | 'league' | 'online' | 'quick'>('league');
   
   const [selectedTime, setSelectedTime] = useState<number>(120);
@@ -69,13 +80,13 @@ const MainMenu: React.FC<MainMenuProps> = ({
   const TeamEditor = () => (
       <div className="bg-black/30 rounded-xl p-4 space-y-4 border border-white/10">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-               <Palette size={12} /> Personalización
+               <Palette size={12} /> {t.customize}
           </label>
           
           {/* Colors */}
           <div className="flex gap-4">
                <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">PRIMARIO</p>
+                   <p className="text-[10px] text-slate-500 mb-1">{t.primary}</p>
                    <div className="flex flex-wrap gap-1">
                        {COLORS.map(c => (
                            <button key={c} onClick={()=>setPrimaryColor(c)} className={`w-5 h-5 rounded-full border ${primaryColor===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
@@ -83,7 +94,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
                    </div>
                </div>
                <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">SECUNDARIO</p>
+                   <p className="text-[10px] text-slate-500 mb-1">{t.secondary}</p>
                    <div className="flex flex-wrap gap-1">
                        {COLORS.map(c => (
                            <button key={c} onClick={()=>setSecondaryColor(c)} className={`w-5 h-5 rounded-full border ${secondaryColor===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
@@ -95,7 +106,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
           {/* Pattern & Emblem */}
           <div className="flex gap-2">
               <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">DISEÑO</p>
+                   <p className="text-[10px] text-slate-500 mb-1">{t.design}</p>
                    <div className="flex gap-1">
                         {(['solid', 'stripes', 'sash', 'half'] as Pattern[]).map(p => (
                              <button key={p} onClick={()=>setSelectedPattern(p)} className={`p-1 rounded ${selectedPattern===p ? 'bg-white/20' : 'bg-black/20'}`} title={p}>
@@ -109,7 +120,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
                    </div>
               </div>
               <div className="flex-1">
-                   <p className="text-[10px] text-slate-500 mb-1">ESCUDO</p>
+                   <p className="text-[10px] text-slate-500 mb-1">{t.emblem}</p>
                    <div className="flex gap-1">
                         {(['shield', 'zap', 'crown', 'skull'] as Emblem[]).map(e => (
                              <button key={e} onClick={()=>setSelectedEmblem(e)} className={`p-1 rounded ${selectedEmblem===e ? 'bg-white/20' : 'bg-black/20'}`}>
@@ -130,7 +141,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
           {/* Time Selector */}
           <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
-                  <Clock size={12} /> Duración
+                  <Clock size={12} /> {t.time}
               </label>
               <div className="flex bg-black/40 rounded-lg p-1">
                   {[60, 120, 180, 300].map(time => (
@@ -148,7 +159,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
           {/* Difficulty Selector */}
           <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-2">
-                  <BarChart3 size={12} /> Dificultad
+                  <BarChart3 size={12} /> {t.difficulty}
               </label>
               <div className="flex bg-black/40 rounded-lg p-1">
                   {(['easy', 'normal', 'hard', 'legend'] as Difficulty[]).map(diff => (
@@ -161,7 +172,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
                               : 'text-slate-500 hover:text-slate-300'
                           }`}
                       >
-                          {diff === 'easy' ? 'Fácil' : diff === 'normal' ? 'Normal' : diff === 'hard' ? 'Difícil' : 'Leyenda'}
+                          {diff === 'easy' ? t.easy : diff === 'normal' ? t.normal : diff === 'hard' ? t.hard : t.legend}
                       </button>
                   ))}
               </div>
@@ -177,6 +188,53 @@ const MainMenu: React.FC<MainMenuProps> = ({
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[128px] animate-pulse delay-700"></div>
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)]"></div>
       </div>
+      
+      {/* SETTINGS BUTTON */}
+      <div className="absolute top-4 right-4 z-50">
+          <button 
+             onClick={() => setShowSettings(true)}
+             className="p-3 bg-slate-800/80 hover:bg-slate-700 text-white rounded-full border border-white/10 shadow-lg"
+          >
+              <Settings size={24} />
+          </button>
+      </div>
+
+      {/* SETTINGS MODAL */}
+      {showSettings && (
+          <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl animate-in zoom-in duration-200">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-black text-white flex items-center gap-2"><Settings size={20} /> {t.settings}</h3>
+                      <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+                  </div>
+                  
+                  <div className="space-y-6">
+                      {/* Language */}
+                      <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">{t.language}</label>
+                          <div className="flex gap-2">
+                              <button onClick={() => setLanguage('es')} className={`flex-1 py-3 rounded-lg border font-bold ${language==='es' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>ES</button>
+                              <button onClick={() => setLanguage('en')} className={`flex-1 py-3 rounded-lg border font-bold ${language==='en' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>EN</button>
+                              <button onClick={() => setLanguage('pt')} className={`flex-1 py-3 rounded-lg border font-bold ${language==='pt' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>PT</button>
+                          </div>
+                      </div>
+
+                      {/* Controls */}
+                      <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">{t.controls}</label>
+                          <button 
+                              onClick={() => setMobileControls(!mobileControls)} 
+                              className={`w-full py-4 rounded-xl border flex items-center justify-center gap-3 font-bold transition-all ${mobileControls ? 'bg-green-600 border-green-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
+                          >
+                              <Smartphone size={20} />
+                              {t.touchControls}
+                              <div className={`w-3 h-3 rounded-full ml-2 ${mobileControls ? 'bg-white' : 'bg-slate-600'}`}></div>
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
 
       <div className="relative z-10 w-full max-w-5xl px-4 flex flex-col md:flex-row gap-8 items-stretch">
         
@@ -184,7 +242,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
         <div className="flex-1 flex flex-col justify-center text-left space-y-6">
           <div className="space-y-2">
             <h2 className="text-blue-500 font-bold tracking-widest text-sm uppercase flex items-center gap-2">
-              <Sparkles size={16} /> Version 1.1
+              <Sparkles size={16} /> {t.version}
             </h2>
             <h1 className="text-6xl md:text-7xl font-black text-white leading-tight tracking-tighter">
               HAXBALL <br />
@@ -193,7 +251,9 @@ const MainMenu: React.FC<MainMenuProps> = ({
               </span>
             </h1>
             <p className="text-slate-400 max-w-md text-lg">
-              Bienvenido a HAXBALL FUTT. Personaliza tu equipo y domina la cancha.
+              {language === 'es' ? "Bienvenido a HAXBALL FUTT. Personaliza tu equipo y domina la cancha." : 
+               language === 'pt' ? "Bem-vindo ao HAXBALL FUTT. Personalize sua equipe e domine o campo." :
+               "Welcome to HAXBALL FUTT. Customize your team and dominate the pitch."}
             </p>
           </div>
 
@@ -202,25 +262,25 @@ const MainMenu: React.FC<MainMenuProps> = ({
                 onClick={() => setActiveTab('league')}
                 className={`flex-1 py-3 px-2 rounded-lg font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'league' ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
-                <LayoutList size={16} /> LIGA
+                <LayoutList size={16} /> {t.league}
             </button>
             <button 
                 onClick={() => setActiveTab('cup')}
                 className={`flex-1 py-3 px-2 rounded-lg font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'cup' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
-                <Trophy size={16} /> COPA
+                <Trophy size={16} /> {t.cup}
             </button>
             <button 
                 onClick={() => setActiveTab('quick')}
                 className={`flex-1 py-3 px-2 rounded-lg font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'quick' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
-                <Zap size={16} /> RÁPIDA
+                <Zap size={16} /> {t.quick}
             </button>
             <button 
                 onClick={() => setActiveTab('online')}
                 className={`flex-1 py-3 px-2 rounded-lg font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'online' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
-                <Globe size={16} /> ONLINE
+                <Globe size={16} /> {t.online}
             </button>
           </div>
         </div>
@@ -234,15 +294,15 @@ const MainMenu: React.FC<MainMenuProps> = ({
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col h-full overflow-y-auto custom-scrollbar">
                         <div>
                             <h3 className="text-2xl font-bold text-white mb-2">Championship Mode</h3>
-                            <p className="text-slate-400 text-sm">Modo Carrera. 15 Temporadas. Ascensos, descensos y progresión.</p>
+                            <p className="text-slate-400 text-sm">{t.leagueDesc}</p>
                         </div>
                         
                         {hasSavedGame && onLoadLeague && (
-                             <button onClick={onLoadLeague} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl flex items-center justify-center gap-3 shadow-xl"><Save fill="currentColor" size={18} /> CONTINUAR</button>
+                             <button onClick={onLoadLeague} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl flex items-center justify-center gap-3 shadow-xl"><Save fill="currentColor" size={18} /> {t.continue}</button>
                         )}
 
                         <div className="space-y-2 border-t border-white/10 pt-4">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nombre del Club</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.teamName}</label>
                             <input type="text" value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white text-lg focus:outline-none focus:border-yellow-500" maxLength={15} />
                         </div>
                         
@@ -251,7 +311,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
 
                         <button onClick={() => handleStart('league')} disabled={isLoading} className="w-full bg-white text-black hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed font-black py-4 rounded-xl text-lg flex items-center justify-center gap-3 transition-transform active:scale-[0.98] mt-auto">
                             {isLoading ? <Loader2 className="animate-spin" /> : <LayoutList fill="currentColor" className="text-black" />}
-                            {isLoading ? 'PREPARANDO...' : 'NUEVA TEMPORADA'}
+                            {isLoading ? '...' : t.startSeason}
                         </button>
                     </div>
                 )}
@@ -259,12 +319,12 @@ const MainMenu: React.FC<MainMenuProps> = ({
                 {activeTab === 'cup' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col h-full overflow-y-auto custom-scrollbar">
                         <div>
-                            <h3 className="text-2xl font-bold text-white mb-2">Copa de 16 Equipos</h3>
-                            <p className="text-slate-400 text-sm">Eliminación directa. Partidos de ida y vuelta. Desempate por GOL DE ORO en empate global.</p>
+                            <h3 className="text-2xl font-bold text-white mb-2">{t.cup}</h3>
+                            <p className="text-slate-400 text-sm">{t.cupDesc}</p>
                         </div>
                         
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nombre del Club</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.teamName}</label>
                             <input type="text" value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white text-lg focus:outline-none focus:border-purple-500" maxLength={15} />
                         </div>
 
@@ -273,7 +333,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
 
                         <button onClick={() => handleStart('cup')} disabled={isLoading} className="w-full bg-white text-black hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed font-black py-4 rounded-xl text-lg flex items-center justify-center gap-3 transition-transform active:scale-[0.98] mt-auto">
                             {isLoading ? <Loader2 className="animate-spin" /> : <Trophy fill="currentColor" className="text-black" />}
-                            {isLoading ? 'GENERANDO...' : 'JUGAR COPA'}
+                            {isLoading ? '...' : t.startCup}
                         </button>
                     </div>
                 )}
@@ -281,14 +341,14 @@ const MainMenu: React.FC<MainMenuProps> = ({
                 {activeTab === 'quick' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 h-full flex flex-col">
                         <div>
-                            <h3 className="text-2xl font-bold text-white mb-2">Partida Rápida</h3>
-                            <p className="text-slate-400 text-sm">Un partido amistoso. Usa tu equipo personalizado o uno aleatorio.</p>
+                            <h3 className="text-2xl font-bold text-white mb-2">{t.quick}</h3>
+                            <p className="text-slate-400 text-sm">{t.quickDesc}</p>
                         </div>
                         
                         <SettingsControls />
 
                         <button onClick={handleQuickMatch} className="w-full bg-orange-500 hover:bg-orange-400 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-3 transition-transform active:scale-[0.98] mt-auto">
-                            <PlayCircle fill="currentColor" /> JUGAR AMISTOSO
+                            <PlayCircle fill="currentColor" /> {t.startFriendly}
                         </button>
                     </div>
                 )}
@@ -296,15 +356,15 @@ const MainMenu: React.FC<MainMenuProps> = ({
                 {activeTab === 'online' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 h-full flex flex-col justify-center">
                          <div>
-                            <h3 className="text-2xl font-bold text-white mb-2">Multijugador P2P</h3>
-                            <p className="text-slate-400 text-sm">Conecta con un amigo. Tú eres el host, tú pones las reglas.</p>
+                            <h3 className="text-2xl font-bold text-white mb-2">P2P Multiplayer</h3>
+                            <p className="text-slate-400 text-sm">{t.onlineDesc}</p>
                         </div>
                         <div className="p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-xl flex items-start gap-3">
                             <Users className="text-emerald-400 shrink-0 mt-1" size={20} />
-                            <p className="text-xs text-emerald-200">Baja latencia. Conexión directa.</p>
+                            <p className="text-xs text-emerald-200">Peer-to-Peer.</p>
                         </div>
                         <button onClick={onGoToOnline} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-5 rounded-xl text-lg flex items-center justify-center gap-3 transition-transform active:scale-[0.98] mt-auto">
-                            <Globe size={24} /> IR AL LOBBY
+                            <Globe size={24} /> {t.goToLobby}
                         </button>
                     </div>
                 )}

@@ -13,6 +13,7 @@ export type Difficulty = 'easy' | 'normal' | 'hard' | 'legend';
 export type Pattern = 'solid' | 'stripes' | 'sash' | 'half';
 export type Emblem = 'shield' | 'zap' | 'skull' | 'crown' | 'star' | 'none';
 export type AITrait = 'balanced' | 'defensive' | 'aggressive';
+export type Language = 'es' | 'en' | 'pt';
 
 export interface MatchSettings {
   timeLimit: number; // in seconds
@@ -111,6 +112,7 @@ export interface GameConfig {
 
 // Network Types
 export interface GameStatePayload {
+  type?: 'GAME_STATE';
   p1: { x: number, y: number, vx: number, vy: number };
   p2: { x: number, y: number, vx: number, vy: number };
   ball: { x: number, y: number, vx: number, vy: number };
@@ -120,5 +122,18 @@ export interface GameStatePayload {
 }
 
 export interface InputPayload {
+  type?: 'INPUT';
   keys: { [key: string]: boolean };
+}
+
+export interface ChatPayload {
+  type: 'CHAT';
+  text: string;
+}
+
+export interface ChatEntry {
+  id: string;
+  sender: 'me' | 'opponent' | 'system';
+  text: string;
+  timestamp: number;
 }
