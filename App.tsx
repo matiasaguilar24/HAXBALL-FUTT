@@ -300,7 +300,8 @@ const App: React.FC = () => {
           return; 
       }
       
-      if (appState === AppState.LEAGUE && league) { 
+      // FIX: Check if league object exists instead of checking state (since state is currently GAME)
+      if (league) { 
           const r = league.currentRound;
           const s1 = league.scheduleDiv1[r].find(m=>m.homeId===league.userTeamId||m.awayId===league.userTeamId);
           const s2 = league.scheduleDiv2[r].find(m=>m.homeId===league.userTeamId||m.awayId===league.userTeamId);
