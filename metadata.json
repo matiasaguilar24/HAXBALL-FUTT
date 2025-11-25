@@ -1,0 +1,5 @@
+{
+  "name": "hasbol",
+  "description": "Un juego de fútbol estilo HaxBall con física 2D, modo torneo offline y comentarios de partidos generados por Gemini AI.",
+  "requestFramePermissions": []
+}
