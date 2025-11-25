@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Copy, ArrowLeft, Wifi, Loader2, Users, Send, MessageSquare, Play } from 'lucide-react';
-import { Language, ChatEntry } from '../types';
+import { Language, ChatEntry, Team } from '../types';
 import { translations } from '../services/translations';
 
 interface OnlineMenuProps {
@@ -14,11 +14,13 @@ interface OnlineMenuProps {
   language: Language;
   chatMessages: ChatEntry[];
   onSendMessage: (text: string) => void;
+  localTeam?: Team;
+  remoteTeam?: Team;
 }
 
 const OnlineMenu: React.FC<OnlineMenuProps> = ({ 
     peerId, onConnect, onBack, connectionStatus, onStartGame, 
-    language, chatMessages, onSendMessage 
+    language, chatMessages, onSendMessage, localTeam, remoteTeam 
 }) => {
   const [remoteIdInput, setRemoteIdInput] = useState('');
   const [chatInput, setChatInput] = useState('');
@@ -42,6 +44,29 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
           onSendMessage(chatInput.trim());
           setChatInput('');
       }
+  };
+
+  const TeamPreview = ({ team, label }: { team?: Team, label: string }) => {
+      if (!team) return (
+          <div className="flex flex-col items-center p-4 bg-black/20 rounded-xl border border-white/5 opacity-50">
+              <div className="w-12 h-12 rounded-full bg-slate-700 mb-2"></div>
+              <span className="text-xs text-slate-500 font-bold uppercase">{label}</span>
+          </div>
+      );
+      return (
+          <div className="flex flex-col items-center p-4 bg-black/20 rounded-xl border border-white/10">
+              <div 
+                className="w-12 h-12 rounded-full mb-2 shadow-lg border-2 border-white/20 relative overflow-hidden" 
+                style={{ background: team.color }}
+              >
+                  {team.pattern === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className="w-2 h-full bg-white/50" style={{background: team.secondaryColor}}></div><div className="w-2 h-full bg-white/50" style={{background: team.secondaryColor}}></div></div>}
+                  {team.pattern === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50" style={{background: team.secondaryColor}}></div>}
+                  {team.pattern === 'sash' && <div className="absolute w-[150%] h-4 bg-white/50 -rotate-45 top-2 -left-2" style={{background: team.secondaryColor}}></div>}
+              </div>
+              <span className="text-white font-bold text-sm mb-1">{team.name}</span>
+              <span className="text-xs text-slate-500 font-bold uppercase">{label}</span>
+          </div>
+      );
   };
 
   return (
@@ -104,11 +129,16 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
                     </button>
                 </div>
             ) : (
-                <div className="flex-1 flex flex-col justify-center items-center space-y-4 animate-in fade-in">
-                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center animate-pulse">
-                        <Wifi className="text-emerald-500" size={32} />
+                <div className="flex-1 flex flex-col space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-center gap-4 mb-4">
+                        <TeamPreview team={localTeam} label="TÚ" />
+                        <div className="text-2xl font-black text-slate-600">VS</div>
+                        <TeamPreview team={remoteTeam} label="RIVAL" />
                     </div>
-                    <p className="text-emerald-400 font-bold">CONNECTED</p>
+
+                    <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold bg-emerald-900/20 py-2 rounded-lg">
+                        <Wifi size={16} /> CONNECTED
+                    </div>
                     <button 
                         onClick={onStartGame}
                         className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98]"

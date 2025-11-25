@@ -7,7 +7,7 @@ import { MatchSettings, Difficulty, Team, Pattern, Emblem, Language } from '../t
 interface MainMenuProps {
   onStartTournament: (playerTeam: Team, generatedTeams: string[], settings: MatchSettings) => void;
   onStartLeague: (playerTeam: Team, generatedTeams: string[], settings: MatchSettings) => void;
-  onGoToOnline: () => void;
+  onGoToOnline: (playerTeam: Team) => void;
   onQuickMatch: (settings: MatchSettings) => void;
   onLoadLeague?: () => void;
   hasSavedGame?: boolean;
@@ -373,7 +373,17 @@ const MainMenu: React.FC<MainMenuProps> = ({
                             <Users className="text-emerald-400 shrink-0 mt-1" size={20} />
                             <p className="text-xs text-emerald-200">{t.onlineCardDesc}</p>
                         </div>
-                        <button onClick={onGoToOnline} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-5 rounded-xl text-lg flex items-center justify-center gap-3 transition-transform active:scale-[0.98] mt-auto">
+                        
+                        {/* Customization Preview in Online Card */}
+                        <div className="mt-2 space-y-2">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.teamName}</label>
+                                <input type="text" value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white text-lg focus:outline-none focus:border-emerald-500" maxLength={15} />
+                            </div>
+                            <TeamEditor />
+                        </div>
+
+                        <button onClick={() => onGoToOnline(getPlayerTeam())} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-5 rounded-xl text-lg flex items-center justify-center gap-3 transition-transform active:scale-[0.98] mt-auto">
                             <Globe size={24} /> {t.goToLobby}
                         </button>
                     </div>

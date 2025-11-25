@@ -131,6 +131,11 @@ export interface ChatPayload {
   text: string;
 }
 
+export interface TeamConfigPayload {
+  type: 'TEAM_CONFIG';
+  team: Team;
+}
+
 export interface ChatEntry {
   id: string;
   sender: 'me' | 'opponent' | 'system';

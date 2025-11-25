@@ -6,7 +6,7 @@ import TournamentView from './components/TournamentView';
 import LeagueView from './components/LeagueView';
 import MainMenu from './components/MainMenu';
 import OnlineMenu from './components/OnlineMenu';
-import { AppState, TournamentState, Match, Team, LeagueState, LeagueTeam, LeagueMatch, MatchSettings, Difficulty, Pattern, AITrait, Language, ChatEntry, ChatPayload } from './types';
+import { AppState, TournamentState, Match, Team, LeagueState, LeagueTeam, LeagueMatch, MatchSettings, Difficulty, Pattern, AITrait, Language, ChatEntry, ChatPayload, TeamConfigPayload } from './types';
 import { translations } from './services/translations';
 import { MessageSquare, ArrowRight, Copy, Loader2, Wifi } from 'lucide-react';
 import { Peer } from "peerjs";
@@ -32,6 +32,10 @@ const App: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatEntry[]>([]);
+  
+  // Online Teams (Customized)
+  const [localOnlineTeam, setLocalOnlineTeam] = useState<Team | null>(null);
+  const [remoteOnlineTeam, setRemoteOnlineTeam] = useState<Team | null>(null);
   
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<any>(null);
@@ -64,6 +68,11 @@ const App: React.FC = () => {
           setOnlineRole('host');
           setupConnectionListeners(conn); 
           addSystemMessage('systemConnected');
+          
+          // Send my team config to client
+          if (localOnlineTeam) {
+              setTimeout(() => sendTeamConfig(conn, localOnlineTeam), 500); 
+          }
       });
       peerRef.current = newPeer;
   };
@@ -78,13 +87,18 @@ const App: React.FC = () => {
       conn.on('open', () => { 
           setConnectionStatus('connected'); 
           setupConnectionListeners(conn);
-          addSystemMessage('systemConnected'); 
+          addSystemMessage('systemConnected');
+          
+          // Send my team config to host
+          if (localOnlineTeam) {
+              sendTeamConfig(conn, localOnlineTeam);
+          }
       });
   };
 
   const setupConnectionListeners = (conn: any) => {
       conn.on('data', (data: any) => {
-          // Check if data is a Chat Message
+          // Check for Chat Message
           if (data && data.type === 'CHAT') {
               setChatMessages(prev => [...prev, {
                   id: Date.now().toString() + Math.random(),
@@ -92,8 +106,13 @@ const App: React.FC = () => {
                   text: data.text,
                   timestamp: Date.now()
               }]);
+          } else if (data && data.type === 'TEAM_CONFIG') {
+               // Receive opponent team config
+               const team = data.team as Team;
+               setRemoteOnlineTeam(team);
+               addSystemMessage(`Rival conectado: ${team.name}`);
           } else {
-              // It's game data, pass to reference
+              // Game data
               networkDataRef.current = data;
           }
       });
@@ -102,6 +121,11 @@ const App: React.FC = () => {
           returnToMenu(); 
           window.location.reload(); 
       });
+  };
+
+  const sendTeamConfig = (conn: any, team: Team) => {
+      const payload: TeamConfigPayload = { type: 'TEAM_CONFIG', team };
+      conn.send(payload);
   };
 
   const sendNetworkData = (data: any) => { if (connRef.current && connectionStatus === 'connected') connRef.current.send(data); };
@@ -119,12 +143,13 @@ const App: React.FC = () => {
       }
   };
 
-  const addSystemMessage = (key: string) => {
-       // We use a timeout to ensure translations are loaded if necessary, though here we have access to 't'
+  const addSystemMessage = (key: string | string) => {
+       // Check if key is a translation key or raw text (simple heuristic)
+       const isKey = !!translations['es'][key as keyof typeof translations['es']];
        setChatMessages(prev => [...prev, {
            id: Date.now().toString(),
            sender: 'system',
-           text: key, // We will translate in the UI
+           text: key, 
            timestamp: Date.now()
        }]);
   };
@@ -501,6 +526,7 @@ const App: React.FC = () => {
       setTournament(null); 
       setLeague(null);
       setChatMessages([]);
+      setRemoteOnlineTeam(null);
       networkDataRef.current = null; // Clean up network data
       if (peerRef.current && onlineRole) {
           // Keep peer connection alive?
@@ -513,7 +539,11 @@ const App: React.FC = () => {
         <MainMenu 
             onStartTournament={startTournament} 
             onStartLeague={startLeague}
-            onGoToOnline={() => { setAppState(AppState.ONLINE_MENU); initializePeer(); }}
+            onGoToOnline={(team) => { 
+                setLocalOnlineTeam(team);
+                setAppState(AppState.ONLINE_MENU); 
+                initializePeer(); 
+            }}
             onQuickMatch={startQuickMatch}
             onLoadLeague={loadLeague}
             hasSavedGame={hasSavedLeague}
@@ -538,6 +568,8 @@ const App: React.FC = () => {
              language={language}
              chatMessages={chatMessages}
              onSendMessage={sendChatMessage}
+             localTeam={localOnlineTeam || undefined}
+             remoteTeam={remoteOnlineTeam || undefined}
           />
       )}
       
@@ -580,12 +612,18 @@ const App: React.FC = () => {
                 tB = quickMatchState.cpu; 
                 allowDraw = false;
                 currentSettings = quickMatchState.settings;
-            } else if (onlineRole && connectionStatus === 'connected') {
+            } else if (onlineRole && connectionStatus === 'connected' && localOnlineTeam) {
                 mode = onlineRole === 'host' ? 'online_host' : 'online_client';
-                // Online Team Setup
-                tA = { id: 'host', name: 'HOST', color: TEAM_COLORS[1], isPlayer: true, pattern: 'solid' };
-                tB = { id: 'client', name: 'CLIENT', color: TEAM_COLORS[4], isPlayer: true, pattern: 'stripes', secondaryColor: '#fff' };
-                currentSettings = { timeLimit: 120, difficulty: 'normal' }; // Default online time
+                // Use customized teams exchanged over network
+                if (onlineRole === 'host') {
+                    tA = localOnlineTeam;
+                    tB = remoteOnlineTeam || { id: 'client', name: 'Rival', color: TEAM_COLORS[4], isPlayer: true, pattern: 'stripes', secondaryColor: '#fff' };
+                } else {
+                    // If client, Host is Team A (Remote), Client is Team B (Local)
+                    tA = remoteOnlineTeam || { id: 'host', name: 'Host', color: TEAM_COLORS[1], isPlayer: true, pattern: 'solid' };
+                    tB = localOnlineTeam;
+                }
+                currentSettings = { timeLimit: 120, difficulty: 'normal' };
             } else if (league && appState === AppState.GAME) {
                  allowDraw = true;
                  currentSettings = league.settings;
