@@ -211,8 +211,10 @@ const App: React.FC = () => {
     }
   };
 
-  const endSeason = (d1: LeagueTeam[], d2: LeagueTeam[], d3: LeagueTeam[]) => {
-    if (!league) return;
+  const endSeason = (d1: LeagueTeam[], d2: LeagueTeam[], d3: LeagueTeam[], currentLeagueState?: LeagueState) => {
+    const activeLeague = currentLeagueState || league;
+    if (!activeLeague) return;
+    
     const sort = (l: LeagueTeam[]) => [...l].sort((a,b)=>b.stats.points-a.stats.points || (b.stats.gf-b.stats.ga)-(a.stats.gf-a.stats.ga));
     const s1 = sort(d1); const s2 = sort(d2); const s3 = sort(d3);
 
@@ -225,20 +227,20 @@ const App: React.FC = () => {
     
     const reset = (l: LeagueTeam[]) => l.map(t=>({...t, stats:{played:0,points:0,gf:0,ga:0,won:0,drawn:0,lost:0}}));
     
-    setNextSeasonData({ div1: reset(nD1), div2: reset(nD2), div3: reset(nD3), season: league.season + 1 });
+    setNextSeasonData({ div1: reset(nD1), div2: reset(nD2), div3: reset(nD3), season: activeLeague.season + 1 });
 
     const cupTeams = s1.slice(0, 16).map(t => ({...t} as Team));
-    const userQualified = cupTeams.some(t => t.id === league.userTeamId);
+    const userQualified = cupTeams.some(t => t.id === activeLeague.userTeamId);
     
     if (userQualified) {
         alert("¡Has clasificado a la Copa de Campeones!");
         setLeague(null);
-        startTournament(league.div1.find(t=>t.id===league.userTeamId)!, [], league.settings);
+        startTournament(activeLeague.div1.find(t=>t.id===activeLeague.userTeamId)!, [], activeLeague.settings);
     } else {
         alert("No clasificaste a la copa. Simulando playoffs...");
         setLeague(null);
-        const dummyPlayer = league.div1.find(t=>t.id===league.userTeamId)!;
-        startTournament(dummyPlayer, [], league.settings);
+        const dummyPlayer = activeLeague.div1.find(t=>t.id===activeLeague.userTeamId)!;
+        startTournament(dummyPlayer, [], activeLeague.settings);
         setTimeout(() => simulateRestOfCup(dummyPlayer.id), 500);
     }
   };
@@ -300,22 +302,75 @@ const App: React.FC = () => {
           return; 
       }
       
-      // FIX: Check if league object exists instead of checking state (since state is currently GAME)
       if (league) { 
-          const r = league.currentRound;
-          const s1 = league.scheduleDiv1[r].find(m=>m.homeId===league.userTeamId||m.awayId===league.userTeamId);
-          const s2 = league.scheduleDiv2[r].find(m=>m.homeId===league.userTeamId||m.awayId===league.userTeamId);
-          const s3 = league.scheduleDiv3[r].find(m=>m.homeId===league.userTeamId||m.awayId===league.userTeamId);
-          const m = s1 || s2 || s3;
+          // 1. Create a Deep Clone of the League State to ensure atomic updates
+          const newLeague = JSON.parse(JSON.stringify(league)) as LeagueState;
+          const r = newLeague.currentRound;
+
+          // 2. Find and Update the User's Match in the clone
+          const allMatches = [...newLeague.scheduleDiv1[r], ...newLeague.scheduleDiv2[r], ...newLeague.scheduleDiv3[r]];
+          const userMatch = allMatches.find(m => m.homeId === newLeague.userTeamId || m.awayId === newLeague.userTeamId);
           
-          if(m) {
-              const isHome = m.homeId === league.userTeamId;
-              m.homeScore = isHome ? scoreA : scoreB;
-              m.awayScore = isHome ? scoreB : scoreA;
-              m.played = true;
-              simulateLeagueRound();
+          if(userMatch) {
+              const isHome = userMatch.homeId === newLeague.userTeamId;
+              userMatch.homeScore = isHome ? scoreA : scoreB;
+              userMatch.awayScore = isHome ? scoreB : scoreA;
+              userMatch.played = true;
           }
+
+          // 3. Simulate the rest of the matches for this round in the clone
+          const simMatches = (matches: LeagueMatch[]) => {
+              return matches.map(m => {
+                  if (m.played) return m; // Already played (includes the user match we just updated)
+                  // Double check to protect user match if logic shifts
+                  if (m.homeId === newLeague.userTeamId || m.awayId === newLeague.userTeamId) return m;
+
+                  const sH = Math.floor(Math.random() * 4);
+                  const sA = Math.floor(Math.random() * 4);
+                  return { ...m, homeScore: sH, awayScore: sA, played: true };
+              });
+          };
+
+          newLeague.scheduleDiv1[r] = simMatches(newLeague.scheduleDiv1[r]);
+          newLeague.scheduleDiv2[r] = simMatches(newLeague.scheduleDiv2[r]);
+          newLeague.scheduleDiv3[r] = simMatches(newLeague.scheduleDiv3[r]);
+
+          // 4. Update Standings/Stats in the clone
+          const updateStats = (teams: LeagueTeam[], matches: LeagueMatch[]) => {
+              return teams.map(t => {
+                  // Recalculate stats from scratch based on all played matches to ensure accuracy
+                  const playedMatches = matches.filter(m => m.played && (m.homeId === t.id || m.awayId === t.id));
+                  const stats = { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 };
+                  playedMatches.forEach(m => {
+                      const isHome = m.homeId === t.id;
+                      const myScore = isHome ? m.homeScore! : m.awayScore!;
+                      const opScore = isHome ? m.awayScore! : m.homeScore!;
+                      stats.played++; stats.gf += myScore; stats.ga += opScore;
+                      if (myScore > opScore) { stats.won++; stats.points += 3; }
+                      else if (myScore < opScore) { stats.lost++; }
+                      else { stats.drawn++; stats.points += 1; }
+                  });
+                  return { ...t, stats };
+              });
+          };
+
+          newLeague.div1 = updateStats(newLeague.div1, newLeague.scheduleDiv1.flat());
+          newLeague.div2 = updateStats(newLeague.div2, newLeague.scheduleDiv2.flat());
+          newLeague.div3 = updateStats(newLeague.div3, newLeague.scheduleDiv3.flat());
+
+          // 5. Check for Season End or Next Round
+          if (userMatch?.played) {
+               newLeague.currentRound = r + 1;
+          }
+
+          // 6. Commit State
+          setLeague(newLeague);
           setAppState(AppState.LEAGUE);
+
+          // 7. Check Season End Trigger
+          if (newLeague.currentRound >= 19) {
+              setTimeout(() => endSeason(newLeague.div1, newLeague.div2, newLeague.div3, newLeague), 500);
+          }
           return;
       }
       
