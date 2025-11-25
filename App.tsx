@@ -4,6 +4,7 @@ import GameCanvas from './components/GameCanvas';
 import TournamentView from './components/TournamentView';
 import LeagueView from './components/LeagueView';
 import MainMenu from './components/MainMenu';
+import OnlineMenu from './components/OnlineMenu';
 import { AppState, TournamentState, Match, Team, LeagueState, LeagueTeam, LeagueMatch, MatchSettings, Difficulty, Pattern, AITrait } from './types';
 import { generateMatchCommentary } from './services/geminiService';
 import { MessageSquare, ArrowRight, Copy, Loader2, Wifi } from 'lucide-react';
@@ -51,18 +52,29 @@ const App: React.FC = () => {
       const newPeer = new Peer() as any;
       newPeer.on('open', (id: string) => setPeerId(id));
       newPeer.on('connection', (conn: any) => {
-          connRef.current = conn; setConnectionStatus('connected'); setOnlineRole('host');
-          setupConnectionListeners(conn); setAppState(AppState.GAME);
+          connRef.current = conn; 
+          setConnectionStatus('connected'); 
+          setOnlineRole('host');
+          setupConnectionListeners(conn); 
+          setAppState(AppState.GAME);
       });
       peerRef.current = newPeer;
   };
-  const connectToPeer = () => {
-      if (!peerRef.current || !remotePeerId) return;
+
+  const connectToPeer = (targetId?: string) => {
+      const idToConnect = targetId || remotePeerId;
+      if (!peerRef.current || !idToConnect) return;
       setConnectionStatus('connecting');
-      const conn = (peerRef.current as any).connect(remotePeerId);
-      connRef.current = conn; setOnlineRole('client');
-      conn.on('open', () => { setConnectionStatus('connected'); setupConnectionListeners(conn); setAppState(AppState.GAME); });
+      const conn = (peerRef.current as any).connect(idToConnect);
+      connRef.current = conn; 
+      setOnlineRole('client');
+      conn.on('open', () => { 
+          setConnectionStatus('connected'); 
+          setupConnectionListeners(conn); 
+          setAppState(AppState.GAME); 
+      });
   };
+
   const setupConnectionListeners = (conn: any) => {
       conn.on('data', (data: any) => networkDataRef.current = data);
       conn.on('close', () => { alert('Conexión perdida'); returnToMenu(); window.location.reload(); });
@@ -284,6 +296,11 @@ const App: React.FC = () => {
   
   const handleGameOver = (scoreA: number, scoreB: number) => {
       if (appState === AppState.QUICK_MATCH) { setAppState(AppState.MENU); return; }
+      if (appState === AppState.GAME && onlineRole) { 
+          alert(`Juego Terminado. Marcador: ${scoreA} - ${scoreB}`);
+          setAppState(AppState.ONLINE_MENU); 
+          return; 
+      }
       
       if (appState === AppState.LEAGUE && league) { 
           const r = league.currentRound;
@@ -328,25 +345,14 @@ const App: React.FC = () => {
                   if (aggA > aggB) newM.winner = newM.teamA;
                   else if (aggB > aggA) newM.winner = newM.teamB;
                   else {
-                      // With Golden Goal, we should not have a tie, but as fallback:
                       newM.winner = newM.teamA; 
                   }
-
-                  // Propagate to next round
-                  const currentIdx = parseInt(m.id.split('_')[1]); 
-                  const nextMIdx = Math.floor(currentIdx / 2);
-                  const nextMIdPrefix = m.round === 0 ? 'qf' : m.round === 1 ? 'sf' : 'f';
-                  const nextMId = `${nextMIdPrefix}_${nextMIdx}`;
-                  
-                  // We need to update the tournament matches first, then we can simulate the rest
                   roundCompleted = true;
               }
               
-              // 1. Update user match first
               const tempMatches = [...tournament.matches];
               tempMatches[mIdx] = newM;
 
-              // 2. Propagate user winner if applicable
               if (newM.winner && roundCompleted) {
                    const currentIdx = parseInt(m.id.split('_')[1]); 
                    const nextMIdx = Math.floor(currentIdx / 2);
@@ -359,7 +365,6 @@ const App: React.FC = () => {
                    }
               }
 
-              // 3. IF round finished (User played Leg 2), SIMULATE other AI matches in this round
               let finalMatches = tempMatches;
               if (roundCompleted) {
                   finalMatches = simulateRemainingMatchesInRound(tempMatches, newM.round);
@@ -375,7 +380,15 @@ const App: React.FC = () => {
       }
   };
 
-  const returnToMenu = () => { setAppState(AppState.MENU); setTournament(null); setLeague(null); };
+  const returnToMenu = () => { 
+      setAppState(AppState.MENU); 
+      setTournament(null); 
+      setLeague(null);
+      if (peerRef.current && onlineRole) {
+          // Keep peer connection alive for menu, but maybe we want to disconnect?
+          // For now, let's just reset app state.
+      }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-green-500 selection:text-white">
@@ -388,6 +401,20 @@ const App: React.FC = () => {
             onLoadLeague={loadLeague}
             hasSavedGame={hasSavedLeague}
         />
+      )}
+
+      {appState === AppState.ONLINE_MENU && (
+          <OnlineMenu 
+             peerId={peerId}
+             connectionStatus={connectionStatus}
+             onConnect={(remoteId) => { setRemotePeerId(remoteId); connectToPeer(remoteId); }}
+             onBack={() => {
+                 setAppState(AppState.MENU);
+                 // Optional: Destroy peer if backing out completely
+                 // if(peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
+                 // setConnectionStatus('disconnected');
+             }}
+          />
       )}
       
       {appState === AppState.LEAGUE && league && (
@@ -422,12 +449,19 @@ const App: React.FC = () => {
             let currentSettings: MatchSettings = { timeLimit: 120, difficulty: 'normal' };
             let leg1ScoreA = 0;
             let leg1ScoreB = 0;
+            let mode: 'single' | 'online_host' | 'online_client' = 'single';
 
             if (appState === AppState.QUICK_MATCH && quickMatchState) { 
                 tA = quickMatchState.player; 
                 tB = quickMatchState.cpu; 
                 allowDraw = false;
                 currentSettings = quickMatchState.settings;
+            } else if (onlineRole && connectionStatus === 'connected') {
+                mode = onlineRole === 'host' ? 'online_host' : 'online_client';
+                // Online Team Setup
+                tA = { id: 'host', name: 'HOST', color: TEAM_COLORS[1], isPlayer: true, pattern: 'solid' };
+                tB = { id: 'client', name: 'CLIENT', color: TEAM_COLORS[4], isPlayer: true, pattern: 'stripes', secondaryColor: '#fff' };
+                currentSettings = { timeLimit: 180, difficulty: 'normal' }; // Default online time
             } else if (league && appState === AppState.GAME) {
                  allowDraw = true;
                  currentSettings = league.settings;
@@ -448,28 +482,15 @@ const App: React.FC = () => {
                      if (m.teamB.isPlayer) { tA = m.teamB; tB = m.teamA; } else { tA = m.teamA; tB = m.teamB; }
                      
                      if (m.playedLeg1) {
-                         // This is Leg 2 (or decisive match)
                          allowDraw = false;
-                         // Pass scores from Leg 1 to allow Golden Goal on aggregate tie
-                         // Note: tA is the user. We need to find what the user scored in Leg 1.
-                         // If user was TeamA in structure, user score is scoreLeg1A.
-                         // If user was TeamB in structure, user score is scoreLeg1B.
-                         // tA is ALWAYS user in this block logic? Yes (see above line).
                          if (m.teamB.isPlayer) {
-                             // Match struct: teamB is User.
-                             // tA = teamB (User), tB = teamA (CPU).
-                             // leg1ScoreA (for User) = m.scoreLeg1B
-                             // leg1ScoreB (for CPU) = m.scoreLeg1A
                              leg1ScoreA = m.scoreLeg1B;
                              leg1ScoreB = m.scoreLeg1A;
                          } else {
-                             // Match struct: teamA is User.
-                             // tA = teamA (User), tB = teamB (CPU).
                              leg1ScoreA = m.scoreLeg1A;
                              leg1ScoreB = m.scoreLeg1B;
                          }
                      } else {
-                         // Leg 1 (or single match start), usually draw allowed in 2-leg format
                          allowDraw = true; 
                      }
                  }
@@ -487,6 +508,9 @@ const App: React.FC = () => {
                 allowRestart={appState === AppState.QUICK_MATCH}
                 leg1ScoreA={leg1ScoreA}
                 leg1ScoreB={leg1ScoreB}
+                mode={mode}
+                networkSend={sendNetworkData}
+                networkDataRef={networkDataRef}
               />
             );
           })()}
