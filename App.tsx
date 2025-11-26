@@ -142,6 +142,14 @@ const App: React.FC = () => {
       conn.send(payload);
   };
   
+  const handleUpdateOnlineTeam = (updatedTeam: Team) => {
+      setLocalOnlineTeam(updatedTeam);
+      // Sync with peer
+      if (connRef.current && connectionStatus === 'connected') {
+          sendTeamConfig(connRef.current, updatedTeam);
+      }
+  };
+  
   const handleHostStartGame = () => {
       if (onlineRole === 'host' && connRef.current) {
           const payload: GameStartPayload = { type: 'GAME_START', stadiumId: selectedStadium };
@@ -599,6 +607,7 @@ const App: React.FC = () => {
              onSendMessage={sendChatMessage}
              localTeam={localOnlineTeam || undefined}
              remoteTeam={remoteOnlineTeam || undefined}
+             onUpdateTeam={handleUpdateOnlineTeam}
              isHost={onlineRole === 'host'}
              selectedStadium={selectedStadium}
              onSelectStadium={setSelectedStadium}

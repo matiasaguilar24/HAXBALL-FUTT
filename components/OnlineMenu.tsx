@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Copy, ArrowLeft, Wifi, Loader2, Users, Send, MessageSquare, Play, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Language, ChatEntry, Team } from '../types';
+import { Copy, ArrowLeft, Wifi, Loader2, Users, Send, MessageSquare, Play, MapPin, ChevronLeft, ChevronRight, Edit, Palette, Shield, Zap, Crown, Skull, X, Check } from 'lucide-react';
+import { Language, ChatEntry, Team, Pattern, Emblem } from '../types';
 import { translations } from '../services/translations';
 import { STADIUMS } from '../services/stadiums';
 
@@ -16,14 +16,17 @@ interface OnlineMenuProps {
   onSendMessage: (text: string) => void;
   localTeam?: Team;
   remoteTeam?: Team;
+  onUpdateTeam: (team: Team) => void;
   isHost: boolean;
   selectedStadium: string;
   onSelectStadium: (id: string) => void;
 }
 
+const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#111827', '#ffffff'];
+
 const OnlineMenu: React.FC<OnlineMenuProps> = ({ 
     peerId, onConnect, onBack, connectionStatus, onStartGame, 
-    language, chatMessages, onSendMessage, localTeam, remoteTeam,
+    language, chatMessages, onSendMessage, localTeam, remoteTeam, onUpdateTeam,
     isHost, selectedStadium, onSelectStadium
 }) => {
   const [remoteIdInput, setRemoteIdInput] = useState('');
@@ -31,6 +34,14 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
   const [copied, setCopied] = useState(false);
   const t = translations[language];
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Editor State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPrimary, setEditPrimary] = useState('');
+  const [editSecondary, setEditSecondary] = useState('');
+  const [editPattern, setEditPattern] = useState<Pattern>('solid');
+  const [editEmblem, setEditEmblem] = useState<Emblem>('shield');
 
   useEffect(() => {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,33 +69,153 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
       onSelectStadium(STADIUMS[newIdx].id);
   };
 
+  const openEditor = () => {
+      if (!localTeam) return;
+      setEditName(localTeam.name);
+      setEditPrimary(localTeam.color);
+      setEditSecondary(localTeam.secondaryColor || '#fff');
+      setEditPattern(localTeam.pattern || 'solid');
+      setEditEmblem(localTeam.emblem || 'shield');
+      setIsEditing(true);
+  };
+
+  const saveEditor = () => {
+      if (!localTeam) return;
+      const updatedTeam: Team = {
+          ...localTeam,
+          name: editName,
+          color: editPrimary,
+          secondaryColor: editSecondary,
+          pattern: editPattern,
+          emblem: editEmblem
+      };
+      onUpdateTeam(updatedTeam);
+      setIsEditing(false);
+  };
+
   const currentStadiumObj = STADIUMS.find(s => s.id === selectedStadium) || STADIUMS[0];
 
-  const TeamPreview = ({ team, label }: { team?: Team, label: string }) => {
+  const TeamPreview = ({ team, label, isLocal }: { team?: Team, label: string, isLocal?: boolean }) => {
       if (!team) return (
-          <div className="flex flex-col items-center p-4 bg-black/20 rounded-xl border border-white/5 opacity-50">
-              <div className="w-12 h-12 rounded-full bg-slate-700 mb-2"></div>
+          <div className="flex flex-col items-center p-4 bg-black/20 rounded-xl border border-white/5 opacity-50 w-32">
+              <div className="w-16 h-16 rounded-full bg-slate-700 mb-2"></div>
               <span className="text-xs text-slate-500 font-bold uppercase">{label}</span>
           </div>
       );
       return (
-          <div className="flex flex-col items-center p-4 bg-black/20 rounded-xl border border-white/10">
+          <div className="flex flex-col items-center p-4 bg-black/20 rounded-xl border border-white/10 w-32 relative group">
               <div 
-                className="w-12 h-12 rounded-full mb-2 shadow-lg border-2 border-white/20 relative overflow-hidden" 
+                className="w-16 h-16 rounded-full mb-2 shadow-lg border-2 border-white/20 relative overflow-hidden" 
                 style={{ background: team.color }}
               >
                   {team.pattern === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className="w-2 h-full bg-white/50" style={{background: team.secondaryColor}}></div><div className="w-2 h-full bg-white/50" style={{background: team.secondaryColor}}></div></div>}
                   {team.pattern === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50" style={{background: team.secondaryColor}}></div>}
                   {team.pattern === 'sash' && <div className="absolute w-[150%] h-4 bg-white/50 -rotate-45 top-2 -left-2" style={{background: team.secondaryColor}}></div>}
+                  
+                  {/* Emblem Overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center text-white/80 drop-shadow-md">
+                        {team.emblem === 'shield' && <Shield size={10} />}
+                        {team.emblem === 'zap' && <Zap size={10} />}
+                        {team.emblem === 'crown' && <Crown size={10} />}
+                        {team.emblem === 'skull' && <Skull size={10} />}
+                  </div>
               </div>
-              <span className="text-white font-bold text-sm mb-1">{team.name}</span>
-              <span className="text-xs text-slate-500 font-bold uppercase">{label}</span>
+              <span className="text-white font-bold text-sm mb-1 text-center truncate w-full">{team.name}</span>
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{label}</span>
+
+              {isLocal && (
+                  <button 
+                    onClick={openEditor}
+                    className="absolute -top-2 -right-2 bg-blue-600 text-white p-1.5 rounded-full shadow-lg hover:bg-blue-500 hover:scale-110 transition-all"
+                    title={t.customize}
+                  >
+                      <Edit size={12} />
+                  </button>
+              )}
           </div>
       );
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      
+      {/* EDITOR MODAL */}
+      {isEditing && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl animate-in zoom-in duration-200">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-black text-white flex items-center gap-2"><Palette size={20} /> {t.customize}</h3>
+                      <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+                  </div>
+
+                  <div className="space-y-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">{t.teamName}</label>
+                            <input 
+                                type="text" 
+                                value={editName} 
+                                onChange={(e) => setEditName(e.target.value)} 
+                                className="w-full bg-black/40 border border-slate-700 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-blue-500"
+                                maxLength={12}
+                            />
+                        </div>
+
+                        <div className="flex gap-4">
+                            <div className="flex-1">
+                                <p className="text-[10px] text-slate-500 mb-1">{t.primary}</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {COLORS.map(c => (
+                                        <button key={c} onClick={()=>setEditPrimary(c)} className={`w-6 h-6 rounded-full border ${editPrimary===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[10px] text-slate-500 mb-1">{t.secondary}</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {COLORS.map(c => (
+                                        <button key={c} onClick={()=>setEditSecondary(c)} className={`w-6 h-6 rounded-full border ${editSecondary===c?'border-white scale-110':'border-transparent opacity-50'}`} style={{background:c}}/>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-[10px] text-slate-500 mb-1">{t.design}</p>
+                            <div className="flex gap-2">
+                                    {(['solid', 'stripes', 'sash', 'half'] as Pattern[]).map(p => (
+                                        <button key={p} onClick={()=>setEditPattern(p)} className={`p-2 rounded flex-1 flex justify-center ${editPattern===p ? 'bg-white/20' : 'bg-black/20'}`} title={p}>
+                                            <div className={`w-6 h-6 rounded-full border border-white/30 overflow-hidden relative`} style={{background: editPrimary}}>
+                                                {p === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className="w-1 h-full bg-white/50"></div><div className="w-1 h-full bg-white/50"></div></div>}
+                                                {p === 'sash' && <div className="absolute w-[150%] h-2 bg-white/50 -rotate-45 top-2 -left-2"></div>}
+                                                {p === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50"></div>}
+                                            </div>
+                                        </button>
+                                    ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-[10px] text-slate-500 mb-1">{t.emblem}</p>
+                            <div className="flex gap-2">
+                                {(['shield', 'zap', 'crown', 'skull'] as Emblem[]).map(e => (
+                                    <button key={e} onClick={()=>setEditEmblem(e)} className={`p-2 rounded flex-1 flex justify-center ${editEmblem===e ? 'bg-white/20' : 'bg-black/20'}`}>
+                                        {e === 'shield' && <Shield size={16} />}
+                                        {e === 'zap' && <Zap size={16} />}
+                                        {e === 'crown' && <Crown size={16} />}
+                                        {e === 'skull' && <Skull size={16} />}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <button onClick={saveEditor} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl mt-4 flex items-center justify-center gap-2">
+                            <Check size={18} /> {t.save}
+                        </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <div className="w-full max-w-4xl bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in zoom-in duration-300 flex overflow-hidden flex-col md:flex-row h-[600px]">
         
         {/* LEFT PANEL: CONNECTION */}
@@ -144,8 +275,8 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col space-y-4 animate-in fade-in">
-                    <div className="flex items-center justify-center gap-4 mb-2">
-                        <TeamPreview team={localTeam} label="TÚ" />
+                    <div className="flex items-center justify-center gap-8 mb-4">
+                        <TeamPreview team={localTeam} label="TÚ" isLocal={true} />
                         <div className="text-2xl font-black text-slate-600">VS</div>
                         <TeamPreview team={remoteTeam} label="RIVAL" />
                     </div>
