@@ -46,11 +46,18 @@ const App: React.FC = () => {
   const [localOnlineTeam, setLocalOnlineTeam] = useState<Team | null>(null);
   const [remoteOnlineTeam, setRemoteOnlineTeam] = useState<Team | null>(null);
   
+  // Refs to avoid stale closures in PeerJS callbacks
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<any>(null);
   const networkDataRef = useRef<any>(null);
+  const localOnlineTeamRef = useRef<Team | null>(null);
 
   const t = translations[language];
+
+  // Sync ref with state
+  useEffect(() => {
+    localOnlineTeamRef.current = localOnlineTeam;
+  }, [localOnlineTeam]);
 
   const saveLeague = () => { if (league) localStorage.setItem('haxball_league_save', JSON.stringify(league)); };
   const loadLeague = () => {
@@ -78,9 +85,13 @@ const App: React.FC = () => {
           setupConnectionListeners(conn); 
           addSystemMessage('systemConnected');
           
-          // Send my team config to client
-          if (localOnlineTeam) {
-              setTimeout(() => sendTeamConfig(conn, localOnlineTeam), 500); 
+          // Send my team config to client using REF to ensure latest data
+          if (localOnlineTeamRef.current) {
+              setTimeout(() => {
+                  if (localOnlineTeamRef.current) {
+                      sendTeamConfig(conn, localOnlineTeamRef.current);
+                  }
+              }, 500); 
           }
       });
       peerRef.current = newPeer;
@@ -98,9 +109,9 @@ const App: React.FC = () => {
           setupConnectionListeners(conn);
           addSystemMessage('systemConnected');
           
-          // Send my team config to host
-          if (localOnlineTeam) {
-              sendTeamConfig(conn, localOnlineTeam);
+          // Send my team config to host using REF to ensure latest data
+          if (localOnlineTeamRef.current) {
+              sendTeamConfig(conn, localOnlineTeamRef.current);
           }
       });
   };

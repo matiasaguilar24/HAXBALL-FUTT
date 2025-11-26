@@ -99,7 +99,7 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
       if (!team) return (
           <div className="flex flex-col items-center p-4 bg-black/20 rounded-xl border border-white/5 opacity-50 w-32">
               <div className="w-16 h-16 rounded-full bg-slate-700 mb-2"></div>
-              <span className="text-xs text-slate-500 font-bold uppercase">{label}</span>
+              <span className="text-xs text-slate-500 font-bold uppercase animate-pulse">{label}</span>
           </div>
       );
       return (
@@ -278,7 +278,7 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
                     <div className="flex items-center justify-center gap-8 mb-4">
                         <TeamPreview team={localTeam} label="TÚ" isLocal={true} />
                         <div className="text-2xl font-black text-slate-600">VS</div>
-                        <TeamPreview team={remoteTeam} label="RIVAL" />
+                        <TeamPreview team={remoteTeam} label={remoteTeam ? "RIVAL" : "ESPERANDO..."} />
                     </div>
 
                     <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold bg-emerald-900/20 py-1 rounded-lg">
