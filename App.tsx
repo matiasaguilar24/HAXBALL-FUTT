@@ -1,14 +1,13 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import GameCanvas from './components/GameCanvas';
 import TournamentView from './components/TournamentView';
 import LeagueView from './components/LeagueView';
 import MainMenu from './components/MainMenu';
 import OnlineMenu from './components/OnlineMenu';
-import { AppState, TournamentState, Match, Team, LeagueState, LeagueTeam, LeagueMatch, MatchSettings, Difficulty, Pattern, AITrait, Language, ChatEntry, ChatPayload, TeamConfigPayload } from './types';
+import { AppState, TournamentState, Match, Team, LeagueState, LeagueTeam, LeagueMatch, MatchSettings, Difficulty, Pattern, AITrait, Language, ChatEntry, ChatPayload, TeamConfigPayload, GameStartPayload } from './types';
 import { translations } from './services/translations';
-import { MessageSquare, ArrowRight, Copy, Loader2, Wifi } from 'lucide-react';
+import { MessageSquare, ArrowRight, Copy, Loader2, Wifi, Trophy } from 'lucide-react';
 import { Peer } from "peerjs";
 
 const TEAM_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#d946ef', '#14b8a6', '#6366f1', '#f97316'];
@@ -21,6 +20,15 @@ const App: React.FC = () => {
   const [league, setLeague] = useState<LeagueState | null>(null);
   const [quickMatchState, setQuickMatchState] = useState<{player: Team, cpu: Team, settings: MatchSettings} | null>(null);
   const [nextSeasonData, setNextSeasonData] = useState<{ div1: LeagueTeam[], div2: LeagueTeam[], div3: LeagueTeam[], season: number } | null>(null);
+  
+  // Game Result State (for Game Over Screen)
+  const [lastMatchResult, setLastMatchResult] = useState<{
+      scoreA: number;
+      scoreB: number;
+      teamA: Team;
+      teamB: Team;
+      nextState: AppState;
+  } | null>(null);
 
   // Settings State
   const [language, setLanguage] = useState<Language>('es');
@@ -32,6 +40,7 @@ const App: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [onlineRole, setOnlineRole] = useState<'host' | 'client' | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatEntry[]>([]);
+  const [selectedStadium, setSelectedStadium] = useState<string>('classic');
   
   // Online Teams (Customized)
   const [localOnlineTeam, setLocalOnlineTeam] = useState<Team | null>(null);
@@ -111,6 +120,11 @@ const App: React.FC = () => {
                const team = data.team as Team;
                setRemoteOnlineTeam(team);
                addSystemMessage(`Rival conectado: ${team.name}`);
+          } else if (data && data.type === 'GAME_START') {
+               // Client receives Start Command with Stadium
+               const payload = data as GameStartPayload;
+               setSelectedStadium(payload.stadiumId);
+               setAppState(AppState.GAME);
           } else {
               // Game data
               networkDataRef.current = data;
@@ -126,6 +140,14 @@ const App: React.FC = () => {
   const sendTeamConfig = (conn: any, team: Team) => {
       const payload: TeamConfigPayload = { type: 'TEAM_CONFIG', team };
       conn.send(payload);
+  };
+  
+  const handleHostStartGame = () => {
+      if (onlineRole === 'host' && connRef.current) {
+          const payload: GameStartPayload = { type: 'GAME_START', stadiumId: selectedStadium };
+          connRef.current.send(payload);
+          setAppState(AppState.GAME);
+      }
   };
 
   const sendNetworkData = (data: any) => { if (connRef.current && connectionStatus === 'connected') connRef.current.send(data); };
@@ -381,15 +403,19 @@ const App: React.FC = () => {
       setAppState(AppState.GAME);
   };
   
-  const handleGameOver = (scoreA: number, scoreB: number) => {
-      if (appState === AppState.QUICK_MATCH) { setAppState(AppState.MENU); return; }
-      if (appState === AppState.GAME && onlineRole) { 
-          alert(`${t.gameOver}: ${scoreA} - ${scoreB}`);
-          setAppState(AppState.ONLINE_MENU); 
-          return; 
-      }
+  const handleGameOver = (scoreA: number, scoreB: number, teamA?: Team, teamB?: Team) => {
+      const tA = teamA || { id: '1', name: 'A', color: '#fff', isPlayer: true };
+      const tB = teamB || { id: '2', name: 'B', color: '#000', isPlayer: false };
       
-      if (league) { 
+      let nextState = AppState.MENU;
+
+      if (appState === AppState.QUICK_MATCH) { 
+           nextState = AppState.MENU; 
+      }
+      else if (appState === AppState.GAME && onlineRole) { 
+           nextState = AppState.ONLINE_MENU; 
+      } 
+      else if (league) { 
           // 1. Create a Deep Clone of the League State to ensure atomic updates
           const newLeague = JSON.parse(JSON.stringify(league)) as LeagueState;
           const r = newLeague.currentRound;
@@ -408,8 +434,7 @@ const App: React.FC = () => {
           // 3. Simulate the rest of the matches for this round in the clone
           const simMatches = (matches: LeagueMatch[]) => {
               return matches.map(m => {
-                  if (m.played) return m; // Already played (includes the user match we just updated)
-                  // Double check to protect user match if logic shifts
+                  if (m.played) return m; // Already played
                   if (m.homeId === newLeague.userTeamId || m.awayId === newLeague.userTeamId) return m;
 
                   const sH = Math.floor(Math.random() * 4);
@@ -425,7 +450,6 @@ const App: React.FC = () => {
           // 4. Update Standings/Stats in the clone
           const updateStats = (teams: LeagueTeam[], matches: LeagueMatch[]) => {
               return teams.map(t => {
-                  // Recalculate stats from scratch based on all played matches to ensure accuracy
                   const playedMatches = matches.filter(m => m.played && (m.homeId === t.id || m.awayId === t.id));
                   const stats = { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 };
                   playedMatches.forEach(m => {
@@ -445,23 +469,16 @@ const App: React.FC = () => {
           newLeague.div2 = updateStats(newLeague.div2, newLeague.scheduleDiv2.flat());
           newLeague.div3 = updateStats(newLeague.div3, newLeague.scheduleDiv3.flat());
 
-          // 5. Check for Season End or Next Round
+          // 5. Check for Next Round
           if (userMatch?.played) {
                newLeague.currentRound = r + 1;
           }
 
           // 6. Commit State
           setLeague(newLeague);
-          setAppState(AppState.LEAGUE);
-
-          // 7. Check Season End Trigger
-          if (newLeague.currentRound >= 19) {
-              setTimeout(() => endSeason(newLeague.div1, newLeague.div2, newLeague.div3, newLeague), 500);
-          }
-          return;
+          nextState = AppState.LEAGUE;
       }
-      
-      if (tournament && tournament.currentMatchId) {
+      else if (tournament && tournament.currentMatchId) {
           const mIdx = tournament.matches.findIndex(m=>m.id === tournament.currentMatchId);
           if (mIdx !== -1) {
               const m = tournament.matches[mIdx];
@@ -517,8 +534,11 @@ const App: React.FC = () => {
                   setTournament({ ...tournament, matches: finalMatches, currentMatchId: null });
               }
           }
-          setAppState(AppState.TOURNAMENT_TREE);
+          nextState = AppState.TOURNAMENT_TREE;
       }
+      
+      setLastMatchResult({ scoreA, scoreB, teamA: tA, teamB: tB, nextState });
+      setAppState(AppState.GAME_OVER);
   };
 
   const returnToMenu = () => { 
@@ -532,6 +552,17 @@ const App: React.FC = () => {
           // Keep peer connection alive?
       }
   };
+
+  const TeamAvatar = ({ team, size = "lg" }: { team: Team, size?: "sm"|"lg" }) => (
+      <div 
+         className={`${size === 'lg' ? 'w-24 h-24 border-4' : 'w-16 h-16 border-2'} rounded-full shadow-2xl border-white/20 relative overflow-hidden bg-slate-800`}
+         style={{ background: team.color }}
+      >
+          {team.pattern === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className={`w-2 h-full bg-white/50`} style={{background: team.secondaryColor}}></div><div className={`w-2 h-full bg-white/50`} style={{background: team.secondaryColor}}></div></div>}
+          {team.pattern === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50" style={{background: team.secondaryColor}}></div>}
+          {team.pattern === 'sash' && <div className="absolute w-[150%] h-4 bg-white/50 -rotate-45 top-2 -left-2" style={{background: team.secondaryColor}}></div>}
+      </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-green-500 selection:text-white">
@@ -562,14 +593,15 @@ const App: React.FC = () => {
              onBack={() => {
                  setAppState(AppState.MENU);
              }}
-             onStartGame={() => {
-                setAppState(AppState.GAME);
-             }}
+             onStartGame={handleHostStartGame}
              language={language}
              chatMessages={chatMessages}
              onSendMessage={sendChatMessage}
              localTeam={localOnlineTeam || undefined}
              remoteTeam={remoteOnlineTeam || undefined}
+             isHost={onlineRole === 'host'}
+             selectedStadium={selectedStadium}
+             onSelectStadium={setSelectedStadium}
           />
       )}
       
@@ -675,16 +707,51 @@ const App: React.FC = () => {
                 networkDataRef={networkDataRef}
                 language={language}
                 mobileControls={mobileControls}
+                stadiumId={selectedStadium} // NEW
               />
             );
           })()}
         </div>
       )}
       
-      {appState === AppState.GAME_OVER && (
-          <div className="h-screen flex flex-col items-center justify-center p-6 bg-slate-900/90 backdrop-blur">
-             <h2 className="text-4xl font-bold mb-6 text-white">{t.gameOver}</h2>
-             <button onClick={() => tournament ? setAppState(AppState.TOURNAMENT_TREE) : returnToMenu()} className="bg-blue-600 px-8 py-3 rounded-full font-bold">{t.continue}</button>
+      {appState === AppState.GAME_OVER && lastMatchResult && (
+          <div className="h-screen flex flex-col items-center justify-center p-6 bg-slate-900/90 backdrop-blur text-white animate-in zoom-in duration-300">
+             <h2 className="text-4xl font-black mb-12 tracking-tight uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">{t.gameOver}</h2>
+             
+             <div className="flex items-center gap-4 sm:gap-12 mb-12 flex-col sm:flex-row">
+                 {/* Team A */}
+                 <div className="flex flex-col items-center gap-4 animate-in slide-in-from-left duration-500">
+                      <TeamAvatar team={lastMatchResult.teamA} />
+                      <span className="text-xl sm:text-2xl font-bold max-w-[150px] text-center truncate">{lastMatchResult.teamA.name}</span>
+                 </div>
+
+                 {/* Score */}
+                 <div className="flex items-center gap-4 sm:gap-6 bg-black/30 p-4 rounded-2xl border border-white/10 shadow-xl backdrop-blur-md">
+                      <span className="text-5xl sm:text-7xl font-mono font-black">{lastMatchResult.scoreA}</span>
+                      <span className="text-3xl sm:text-4xl text-slate-500">-</span>
+                      <span className="text-5xl sm:text-7xl font-mono font-black">{lastMatchResult.scoreB}</span>
+                 </div>
+
+                 {/* Team B */}
+                 <div className="flex flex-col items-center gap-4 animate-in slide-in-from-right duration-500">
+                      <TeamAvatar team={lastMatchResult.teamB} />
+                      <span className="text-xl sm:text-2xl font-bold max-w-[150px] text-center truncate">{lastMatchResult.teamB.name}</span>
+                 </div>
+             </div>
+
+             <button 
+                 onClick={() => {
+                     setAppState(lastMatchResult.nextState);
+                     setLastMatchResult(null);
+                     // Check delayed league season end
+                     if (league && league.currentRound >= 19 && lastMatchResult.nextState === AppState.LEAGUE) {
+                         setTimeout(() => endSeason(league.div1, league.div2, league.div3), 100);
+                     }
+                 }}
+                 className="bg-white text-black hover:bg-slate-200 px-12 py-4 rounded-full font-black text-xl transition-all active:scale-95 shadow-xl flex items-center gap-2 group"
+             >
+                 {t.continue} <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+             </button>
           </div>
       )}
     </div>

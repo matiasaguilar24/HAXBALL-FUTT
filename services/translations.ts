@@ -63,7 +63,13 @@ export const translations = {
     typeMessage: "Escribe un mensaje...",
     send: "ENVIAR",
     systemConnected: "Conexión establecida. ¡Pueden chatear!",
-    onlineCardDesc: "Juega online con un amigo en un amistoso de 2 minutos"
+    onlineCardDesc: "Juega online con un amigo en un amistoso de 2 minutos",
+    stadium: "ESTADIO",
+    stadiumClassic: "Clásico",
+    stadiumFutsal: "Futsal",
+    stadiumIce: "Hielo",
+    stadiumMud: "Barro",
+    stadiumRetro: "Retro"
   },
   en: {
     play: "PLAY",
@@ -125,7 +131,13 @@ export const translations = {
     typeMessage: "Type a message...",
     send: "SEND",
     systemConnected: "Connection established. You can chat now!",
-    onlineCardDesc: "Play online with a friend in a 2-minute friendly match"
+    onlineCardDesc: "Play online with a friend in a 2-minute friendly match",
+    stadium: "STADIUM",
+    stadiumClassic: "Classic",
+    stadiumFutsal: "Futsal",
+    stadiumIce: "Ice",
+    stadiumMud: "Mud",
+    stadiumRetro: "Retro"
   },
   pt: {
     play: "JOGAR",
@@ -187,6 +199,12 @@ export const translations = {
     typeMessage: "Digite uma mensagem...",
     send: "ENVIAR",
     systemConnected: "Conexão estabelecida. Podem conversar!",
-    onlineCardDesc: "Jogue online com um amigo em um amistoso de 2 minutos"
+    onlineCardDesc: "Jogue online com um amigo em um amistoso de 2 minutos",
+    stadium: "ESTÁDIO",
+    stadiumClassic: "Clássico",
+    stadiumFutsal: "Futsal",
+    stadiumIce: "Gelo",
+    stadiumMud: "Lama",
+    stadiumRetro: "Retro"
   }
 };

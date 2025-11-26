@@ -15,9 +15,22 @@ export type Emblem = 'shield' | 'zap' | 'skull' | 'crown' | 'star' | 'none';
 export type AITrait = 'balanced' | 'defensive' | 'aggressive';
 export type Language = 'es' | 'en' | 'pt';
 
+export interface Stadium {
+  id: string;
+  nameKey: string; // Translation key
+  grassColor: string;
+  grassStripesColor: string;
+  linesColor: string;
+  goalColor: string;
+  backgroundColor: string;
+  playerDamping: number; // 0.94 default. Higher = stickier, Lower = slippery
+  ballDamping: number; // 0.985 default.
+}
+
 export interface MatchSettings {
   timeLimit: number; // in seconds
   difficulty: Difficulty;
+  stadiumId?: string;
 }
 
 export interface Team {
@@ -134,6 +147,11 @@ export interface ChatPayload {
 export interface TeamConfigPayload {
   type: 'TEAM_CONFIG';
   team: Team;
+}
+
+export interface GameStartPayload {
+  type: 'GAME_START';
+  stadiumId: string;
 }
 
 export interface ChatEntry {

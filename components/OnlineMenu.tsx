@@ -1,9 +1,9 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Copy, ArrowLeft, Wifi, Loader2, Users, Send, MessageSquare, Play } from 'lucide-react';
+import { Copy, ArrowLeft, Wifi, Loader2, Users, Send, MessageSquare, Play, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Language, ChatEntry, Team } from '../types';
 import { translations } from '../services/translations';
+import { STADIUMS } from '../services/stadiums';
 
 interface OnlineMenuProps {
   peerId: string;
@@ -16,11 +16,15 @@ interface OnlineMenuProps {
   onSendMessage: (text: string) => void;
   localTeam?: Team;
   remoteTeam?: Team;
+  isHost: boolean;
+  selectedStadium: string;
+  onSelectStadium: (id: string) => void;
 }
 
 const OnlineMenu: React.FC<OnlineMenuProps> = ({ 
     peerId, onConnect, onBack, connectionStatus, onStartGame, 
-    language, chatMessages, onSendMessage, localTeam, remoteTeam 
+    language, chatMessages, onSendMessage, localTeam, remoteTeam,
+    isHost, selectedStadium, onSelectStadium
 }) => {
   const [remoteIdInput, setRemoteIdInput] = useState('');
   const [chatInput, setChatInput] = useState('');
@@ -45,6 +49,16 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
           setChatInput('');
       }
   };
+
+  const cycleStadium = (dir: 1 | -1) => {
+      const idx = STADIUMS.findIndex(s => s.id === selectedStadium);
+      let newIdx = idx + dir;
+      if (newIdx < 0) newIdx = STADIUMS.length - 1;
+      if (newIdx >= STADIUMS.length) newIdx = 0;
+      onSelectStadium(STADIUMS[newIdx].id);
+  };
+
+  const currentStadiumObj = STADIUMS.find(s => s.id === selectedStadium) || STADIUMS[0];
 
   const TeamPreview = ({ team, label }: { team?: Team, label: string }) => {
       if (!team) return (
@@ -130,21 +144,43 @@ const OnlineMenu: React.FC<OnlineMenuProps> = ({
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col space-y-4 animate-in fade-in">
-                    <div className="flex items-center justify-center gap-4 mb-4">
+                    <div className="flex items-center justify-center gap-4 mb-2">
                         <TeamPreview team={localTeam} label="TÚ" />
                         <div className="text-2xl font-black text-slate-600">VS</div>
                         <TeamPreview team={remoteTeam} label="RIVAL" />
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold bg-emerald-900/20 py-2 rounded-lg">
+                    <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold bg-emerald-900/20 py-1 rounded-lg">
                         <Wifi size={16} /> CONNECTED
                     </div>
-                    <button 
-                        onClick={onStartGame}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98]"
-                    >
-                        <Play fill="currentColor" /> {t.play}
-                    </button>
+
+                    {/* STADIUM SELECTOR */}
+                    {isHost ? (
+                        <div className="bg-black/30 rounded-xl p-2 border border-white/5">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block text-center">{t.stadium}</label>
+                            <div className="flex items-center justify-between">
+                                <button onClick={() => cycleStadium(-1)} className="p-2 text-slate-400 hover:text-white"><ChevronLeft size={20}/></button>
+                                <div className="flex flex-col items-center">
+                                    <span className="font-bold text-sm text-white">{t[currentStadiumObj.nameKey as keyof typeof t]}</span>
+                                    <div className="w-full h-1 mt-1 rounded-full" style={{background: currentStadiumObj.grassColor}}></div>
+                                </div>
+                                <button onClick={() => cycleStadium(1)} className="p-2 text-slate-400 hover:text-white"><ChevronRight size={20}/></button>
+                            </div>
+                        </div>
+                    ) : (
+                         <div className="text-center text-xs text-slate-500 italic py-2">
+                             Esperando que el anfitrión inicie la partida...
+                         </div>
+                    )}
+
+                    {isHost && (
+                        <button 
+                            onClick={onStartGame}
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98]"
+                        >
+                            <Play fill="currentColor" /> {t.play}
+                        </button>
+                    )}
                 </div>
             )}
         </div>

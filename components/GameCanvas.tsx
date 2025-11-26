@@ -1,12 +1,14 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { PhysicsCircle, Team, GameStatePayload, InputPayload, Difficulty, Pattern, Language } from '../types';
+import { PhysicsCircle, Team, GameStatePayload, InputPayload, Difficulty, Pattern, Language, Stadium } from '../types';
 import { translations } from '../services/translations';
+import { getStadiumById } from '../services/stadiums';
 import { Pause, Play, LogOut, Volume2, VolumeX, Target } from 'lucide-react';
 
 interface GameCanvasProps {
   teamA: Team;
   teamB: Team;
-  onGameOver: (scoreA: number, scoreB: number) => void;
+  onGameOver: (scoreA: number, scoreB: number, teamA?: Team, teamB?: Team) => void;
   onExit?: () => void;
   mode?: 'single' | 'online_host' | 'online_client';
   networkSend?: (data: any) => void;
@@ -19,6 +21,7 @@ interface GameCanvasProps {
   leg1ScoreB?: number;
   language?: Language;
   mobileControls?: boolean;
+  stadiumId?: string; // NEW PROP
 }
 
 const CANVAS_WIDTH = 800;
@@ -35,7 +38,7 @@ const PHYSICS_STEPS = 5;
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
   teamA, teamB, onGameOver, onExit, mode = 'single', networkSend, networkDataRef, 
   allowDraw = false, matchDuration = 120, aiDifficulty = 'normal', allowRestart = false,
-  leg1ScoreA = 0, leg1ScoreB = 0, language = 'es', mobileControls = false
+  leg1ScoreA = 0, leg1ScoreB = 0, language = 'es', mobileControls = false, stadiumId = 'classic'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -48,6 +51,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const requestRef = useRef<number>(0);
   const t = translations[language];
   
+  // Stadium Data
+  const stadium = getStadiumById(stadiumId);
+
   // PENALTY STATE
   const [isPenaltyMode, setIsPenaltyMode] = useState(false);
   const [penaltyPhase, setPenaltyPhase] = useState<'aiming' | 'kicking' | 'result'>('aiming');
@@ -69,15 +75,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Game Objects
   // PlayerRef = Left Team (P1 / Host)
   const playerRef = useRef<PhysicsCircle>({ 
-      x: 150, y: CANVAS_HEIGHT / 2, radius: PLAYER_RADIUS, vx: 0, vy: 0, mass: 10, damping: 0.94, 
+      x: 150, y: CANVAS_HEIGHT / 2, radius: PLAYER_RADIUS, vx: 0, vy: 0, mass: 10, damping: stadium.playerDamping, 
       color: teamA.color, secondaryColor: teamA.secondaryColor, pattern: teamA.pattern 
   });
   // OpponentRef = Right Team (CPU / Client / P2)
   const opponentRef = useRef<PhysicsCircle>({ 
-      x: CANVAS_WIDTH - 150, y: CANVAS_HEIGHT / 2, radius: PLAYER_RADIUS, vx: 0, vy: 0, mass: 10, damping: 0.94, 
+      x: CANVAS_WIDTH - 150, y: CANVAS_HEIGHT / 2, radius: PLAYER_RADIUS, vx: 0, vy: 0, mass: 10, damping: stadium.playerDamping, 
       color: teamB.color, secondaryColor: teamB.secondaryColor, pattern: teamB.pattern
   });
-  const ballRef = useRef<PhysicsCircle>({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, radius: BALL_RADIUS, vx: 0, vy: 0, mass: 1, damping: 0.985, color: '#ffffff' });
+  const ballRef = useRef<PhysicsCircle>({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, radius: BALL_RADIUS, vx: 0, vy: 0, mass: 1, damping: stadium.ballDamping, color: '#ffffff' });
   
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const remoteKeysRef = useRef<{ [key: string]: boolean }>({});
@@ -222,7 +228,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
               setPenaltyTurn('player');
               setPenaltyRound(r => r + 1);
               if (penaltyRound >= 3 && scoreA !== scoreB) {
-                   onGameOver(scoreA, scoreB);
+                   onGameOver(scoreA, scoreB, teamA, teamB);
                    return;
               }
           }
@@ -243,11 +249,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       
       if (isGoldenGoal) {
           isEndingRef.current = true;
-          setTimeout(() => onGameOver(scorer==='A'?scoreA+1:scoreA, scorer==='B'?scoreB+1:scoreB), 100);
+          setTimeout(() => onGameOver(scorer==='A'?scoreA+1:scoreA, scorer==='B'?scoreB+1:scoreB, teamA, teamB), 100);
       } else {
           resetPositions('kickoff');
       }
-  }, [scoreA, scoreB, isGoldenGoal, onGameOver, resetPositions, playSound, isPenaltyMode, penaltyTurn]);
+  }, [scoreA, scoreB, isGoldenGoal, onGameOver, resetPositions, playSound, isPenaltyMode, penaltyTurn, teamA, teamB]);
 
   // PHYSICS
   const runPhysics = useCallback(() => {
@@ -508,16 +514,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [mode, runPhysics, handleGoal, AI_SPEED, isPaused, isPenaltyMode, penaltyPhase, teamB.aiTrait, scoreA, scoreB, timeLeft, aiDifficulty]);
 
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    ctx.fillStyle = '#15803d'; ctx.fillRect(PITCH_MARGIN, PITCH_MARGIN, CANVAS_WIDTH - PITCH_MARGIN * 2, CANVAS_HEIGHT - PITCH_MARGIN * 2);
+    // 1. Background (Stadium specific)
+    ctx.fillStyle = stadium.backgroundColor; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // 2. Pitch (Stadium specific)
+    ctx.fillStyle = stadium.grassColor; ctx.fillRect(PITCH_MARGIN, PITCH_MARGIN, CANVAS_WIDTH - PITCH_MARGIN * 2, CANVAS_HEIGHT - PITCH_MARGIN * 2);
+    
+    // 3. Stripes (Stadium specific)
     ctx.save(); ctx.beginPath(); ctx.rect(PITCH_MARGIN, PITCH_MARGIN, CANVAS_WIDTH - PITCH_MARGIN*2, CANVAS_HEIGHT - PITCH_MARGIN*2); ctx.clip();
-    for (let i = PITCH_MARGIN; i < CANVAS_WIDTH - PITCH_MARGIN; i += 100) { ctx.fillStyle = '#16a34a'; ctx.fillRect(i, PITCH_MARGIN, 50, CANVAS_HEIGHT - PITCH_MARGIN * 2); }
+    for (let i = PITCH_MARGIN; i < CANVAS_WIDTH - PITCH_MARGIN; i += 100) { ctx.fillStyle = stadium.grassStripesColor; ctx.fillRect(i, PITCH_MARGIN, 50, CANVAS_HEIGHT - PITCH_MARGIN * 2); }
     ctx.restore();
-    ctx.lineWidth = 4; ctx.strokeStyle = '#f8fafc';
+    
+    // 4. Lines (Stadium specific)
+    ctx.lineWidth = 4; ctx.strokeStyle = stadium.linesColor;
     ctx.strokeRect(PITCH_MARGIN, PITCH_MARGIN, CANVAS_WIDTH - PITCH_MARGIN*2, CANVAS_HEIGHT - PITCH_MARGIN*2);
     ctx.beginPath(); ctx.arc(CANVAS_WIDTH/2, CANVAS_HEIGHT/2, 70, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(CANVAS_WIDTH/2, PITCH_MARGIN); ctx.lineTo(CANVAS_WIDTH/2, CANVAS_HEIGHT - PITCH_MARGIN); ctx.stroke();
-    ctx.fillStyle = '#cbd5e1';
+    
+    // 5. Goals (Stadium specific)
+    ctx.fillStyle = stadium.goalColor;
     ctx.fillRect(5, (CANVAS_HEIGHT - GOAL_HEIGHT)/2, PITCH_MARGIN - 5, GOAL_HEIGHT);
     ctx.fillRect(CANVAS_WIDTH - PITCH_MARGIN, (CANVAS_HEIGHT - GOAL_HEIGHT)/2, PITCH_MARGIN - 5, GOAL_HEIGHT);
 
@@ -551,7 +566,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
          ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(60, -10); ctx.lineTo(60, 10); ctx.fill();
          ctx.restore();
     }
-  }, []);
+  }, [stadium]);
 
   const gameLoop = useCallback(() => {
     if (isEndingRef.current) return;
@@ -640,7 +655,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 return 0;
            } else {
                 isEndingRef.current = true;
-                onGameOver(scoreA, scoreB);
+                onGameOver(scoreA, scoreB, teamA, teamB);
                 return 0;
            }
         }
@@ -648,7 +663,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [scoreA, scoreB, allowDraw, isPaused, isGoldenGoal, isPenaltyMode, leg1ScoreA, leg1ScoreB, mode, onGameOver]);
+  }, [scoreA, scoreB, allowDraw, isPaused, isGoldenGoal, isPenaltyMode, leg1ScoreA, leg1ScoreB, mode, onGameOver, teamA, teamB]);
 
   useEffect(() => { requestRef.current = requestAnimationFrame(gameLoop); return () => cancelAnimationFrame(requestRef.current); }, [gameLoop]);
 
