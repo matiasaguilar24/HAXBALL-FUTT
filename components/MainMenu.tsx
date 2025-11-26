@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { generateTeamNames } from '../services/geminiService';
 import { translations } from '../services/translations';
@@ -39,7 +40,8 @@ const MainMenu: React.FC<MainMenuProps> = ({
   const [primaryColor, setPrimaryColor] = useState('#3b82f6');
   const [secondaryColor, setSecondaryColor] = useState('#ffffff');
   const [selectedPattern, setSelectedPattern] = useState<Pattern>('solid');
-  const [selectedEmblem, setSelectedEmblem] = useState<Emblem>('shield');
+  // Default emblem set to 'none' for offline modes as requested
+  const [selectedEmblem, setSelectedEmblem] = useState<Emblem>('none');
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -111,34 +113,19 @@ const MainMenu: React.FC<MainMenuProps> = ({
                   </div>
               </div>
 
-              {/* Pattern & Emblem */}
-              <div className="flex gap-2">
-                  <div className="flex-1">
-                      <p className="text-[10px] text-slate-500 mb-1">{t.design}</p>
-                      <div className="flex gap-1">
-                            {(['solid', 'stripes', 'sash', 'half'] as Pattern[]).map(p => (
-                                <button key={p} onClick={()=>setSelectedPattern(p)} className={`p-1 rounded ${selectedPattern===p ? 'bg-white/20' : 'bg-black/20'}`} title={p}>
-                                    <div className={`w-6 h-6 rounded-full border border-white/30 overflow-hidden relative`} style={{background: primaryColor}}>
-                                        {p === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className="w-1 h-full bg-white/50"></div><div className="w-1 h-full bg-white/50"></div></div>}
-                                        {p === 'sash' && <div className="absolute w-[150%] h-2 bg-white/50 -rotate-45 top-2 -left-2"></div>}
-                                        {p === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50"></div>}
-                                    </div>
-                                </button>
-                            ))}
-                      </div>
-                  </div>
-                  <div className="flex-1">
-                      <p className="text-[10px] text-slate-500 mb-1">{t.emblem}</p>
-                      <div className="flex gap-1">
-                            {(['shield', 'zap', 'crown', 'skull'] as Emblem[]).map(e => (
-                                <button key={e} onClick={()=>setSelectedEmblem(e)} className={`p-1 rounded ${selectedEmblem===e ? 'bg-white/20' : 'bg-black/20'}`}>
-                                    {e === 'shield' && <Shield size={16} />}
-                                    {e === 'zap' && <Zap size={16} />}
-                                    {e === 'crown' && <Crown size={16} />}
-                                    {e === 'skull' && <Skull size={16} />}
-                                </button>
-                            ))}
-                      </div>
+              {/* Pattern Only (Emblem removed for offline modes) */}
+              <div>
+                  <p className="text-[10px] text-slate-500 mb-1">{t.design}</p>
+                  <div className="flex gap-1">
+                        {(['solid', 'stripes', 'sash', 'half'] as Pattern[]).map(p => (
+                            <button key={p} onClick={()=>setSelectedPattern(p)} className={`flex-1 p-2 rounded flex justify-center ${selectedPattern===p ? 'bg-white/20' : 'bg-black/20'}`} title={p}>
+                                <div className={`w-6 h-6 rounded-full border border-white/30 overflow-hidden relative`} style={{background: primaryColor}}>
+                                    {p === 'stripes' && <div className="absolute inset-0 flex justify-around"><div className="w-1 h-full bg-white/50"></div><div className="w-1 h-full bg-white/50"></div></div>}
+                                    {p === 'sash' && <div className="absolute w-[150%] h-2 bg-white/50 -rotate-45 top-2 -left-2"></div>}
+                                    {p === 'half' && <div className="absolute right-0 w-1/2 h-full bg-white/50"></div>}
+                                </div>
+                            </button>
+                        ))}
                   </div>
               </div>
             </div>
